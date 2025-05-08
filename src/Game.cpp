@@ -4,20 +4,28 @@
 #include <cstdlib> // For rand(), srand()
 #include <ctime>   // For time()
 
-Game::Game(int width, int height, const char *title)
+Game::Game(int width, int height, const char* title)
     : screenWidth(width), screenHeight(height),
       dino(nullptr), currentState(GameState::PLAYING),
       groundY(0), gameSpeed(300.0f), score(0),
       obstacleSpawnTimer(0.0f),
       minObstacleSpawnInterval(1.0f), maxObstacleSpawnInterval(2.5f),
       currentObstacleSpawnInterval(0.0f), // Will be set in InitGame/ResetGame
-      totalRoadWidthCovered(0.0f) {
+      totalRoadWidthCovered(0.0f)
+{
     srand(static_cast<unsigned int>(time(nullptr))); // 初始化随机种子
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, title);
-    SetWindowMinSize(600, 300); // 设置最小窗口尺寸
+    SetWindowMinSize(virtualScreenWidth / 2, virtualScreenHeight / 2); // 最小物理窗口
     SetTargetFPS(60);
+
+    targetRenderTexture = LoadRenderTexture(virtualScreenWidth, virtualScreenHeight);
+    SetTextureFilter(targetRenderTexture.texture, TEXTURE_FILTER_POINT); // 或者 TEXTURE_FILTER_NEAREST
+    /*
+     *默认的纹理过滤方式（通常是双线性过滤 TEXTURE_FILTER_BILINEAR）会在像素之间进行插值，导致模糊效果
+     *将纹理过滤方式改为 最近邻过滤 (TEXTURE_FILTER_POINT 或 TEXTURE_FILTER_NEAREST)。
+     */
 
     LoadResources();
     InitGame(); // 初始化游戏状态和对象
@@ -25,65 +33,207 @@ Game::Game(int width, int height, const char *title)
     HandleWindowResize();
 }
 
-Game::~Game() {
+Game::~Game()
+{
+    UnloadRenderTexture(targetRenderTexture); // 卸载渲染纹理
     UnloadResources();
     delete dino;
     CloseWindow();
 }
 
-void Game::LoadResources() {
-    // Dino
-    dinoRunFrames.push_back(LoadTexture("assets/dino_run_0.png"));
-    dinoRunFrames.push_back(LoadTexture("assets/dino_run_1.png"));
-    for (const auto &tex: dinoRunFrames) {
-        if (tex.id == 0) TraceLog(LOG_WARNING, "Failed to load a dino run frame.");
-    }
+void Game::LoadResources()
+{
+    Texture2D tempTex; // 用于临时接收加载的纹理
 
-    dinoJumpFrame = LoadTexture("assets/dino_jump.png");
-    if (dinoJumpFrame.id == 0) TraceLog(LOG_WARNING, "Failed to load dino jump frame.");
-
-    // Small Cacti
-    smallCactusTextures.push_back(LoadTexture("assets/small_cactus_1.png"));
-    smallCactusTextures.push_back(LoadTexture("assets/small_cactus_2.png"));
-    smallCactusTextures.push_back(LoadTexture("assets/small_cactus_3.png"));
-    for (const auto &tex: smallCactusTextures) {
-        if (tex.id == 0) TraceLog(LOG_WARNING, "Failed to load a small cactus texture.");
-    }
-
-    // Big Cacti
-    bigCactusTextures.push_back(LoadTexture("assets/big_cactus_1.png"));
-    bigCactusTextures.push_back(LoadTexture("assets/big_cactus_2.png"));
-    // big_cactus_3.png 似乎不存在于你的列表，如果需要请添加
-    for (const auto &tex: bigCactusTextures) {
-        if (tex.id == 0) TraceLog(LOG_WARNING, "Failed to load a big cactus texture.");
-    }
-
-    // Road Segments
-    roadSegmentTextures.push_back(LoadTexture("assets/road_1.png"));
-    roadSegmentTextures.push_back(LoadTexture("assets/road_2.png"));
-    roadSegmentTextures.push_back(LoadTexture("assets/road_3.png"));
-    roadSegmentTextures.push_back(LoadTexture("assets/road_4.png"));
-    for (const auto &tex: roadSegmentTextures) {
-        if (tex.id == 0) TraceLog(LOG_WARNING, "Failed to load a road segment texture.");
-    }
-}
-
-void Game::UnloadResources() {
-    for (auto &tex: dinoRunFrames) UnloadTexture(tex);
-    for (auto &tex: smallCactusTextures) UnloadTexture(tex);
-    for (auto &tex: bigCactusTextures) UnloadTexture(tex);
-    for (auto &tex: roadSegmentTextures) UnloadTexture(tex);
-    UnloadTexture(dinoJumpFrame);
+    // 清空之前的纹理，以防 ResetGame 时重复加载（虽然通常卸载后才加载）
     dinoRunFrames.clear();
     smallCactusTextures.clear();
     bigCactusTextures.clear();
     roadSegmentTextures.clear();
+
+    // Dino
+    tempTex = LoadTexture("assets/dino_run_0.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        dinoRunFrames.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/dino_run_0.png");
+    }
+
+    tempTex = LoadTexture("assets/dino_run_1.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        dinoRunFrames.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/dino_run_1.png");
+    }
+    // dino_run_2.png 已被 dino_jump.png 替代
+
+    dinoJumpFrame = LoadTexture("assets/dino_jump.png");
+    if (dinoJumpFrame.id > 0)
+    {
+        SetTextureFilter(dinoJumpFrame, TEXTURE_FILTER_POINT);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/dino_jump.png");
+    }
+
+    // Small Cacti
+    tempTex = LoadTexture("assets/small_cactus_1.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        smallCactusTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/small_cactus_1.png");
+    }
+
+    tempTex = LoadTexture("assets/small_cactus_2.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        smallCactusTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/small_cactus_2.png");
+    }
+
+    tempTex = LoadTexture("assets/small_cactus_3.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        smallCactusTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/small_cactus_3.png");
+    }
+
+    // Big Cacti
+    tempTex = LoadTexture("assets/big_cactus_1.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        bigCactusTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/big_cactus_1.png");
+    }
+
+    tempTex = LoadTexture("assets/big_cactus_2.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        bigCactusTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/big_cactus_2.png");
+    }
+
+    // Road Segments
+    tempTex = LoadTexture("assets/road_1.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        roadSegmentTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/road_1.png");
+    }
+
+    tempTex = LoadTexture("assets/road_2.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        roadSegmentTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/road_2.png");
+    }
+
+    tempTex = LoadTexture("assets/road_3.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        roadSegmentTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/road_3.png");
+    }
+
+    tempTex = LoadTexture("assets/road_4.png");
+    if (tempTex.id > 0)
+    {
+        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+        roadSegmentTextures.push_back(tempTex);
+    }
+    else
+    {
+        TraceLog(LOG_WARNING, "Failed to load texture: assets/road_4.png");
+    }
+
+    // 最终检查一下是否有关键纹理未加载成功，可以决定是否中止游戏或使用占位符
+    if (dinoRunFrames.empty() || dinoJumpFrame.id == 0)
+    {
+        TraceLog(LOG_ERROR, "CRITICAL: Dinosaur core textures failed to load. Game might not work correctly.");
+        // 在这里可以考虑抛出异常，或者设置一个标志位让游戏进入错误状态
+    }
+    if (roadSegmentTextures.empty())
+    {
+        TraceLog(LOG_ERROR, "CRITICAL: Road textures failed to load. Ground will not be visible.");
+    }
 }
 
-void Game::InitGame() {
+void Game::UnloadResources()
+{
+    for (auto& tex : dinoRunFrames)
+    {
+        if (tex.id > 0) UnloadTexture(tex);
+    }
+    dinoRunFrames.clear();
+
+    if (dinoJumpFrame.id > 0) UnloadTexture(dinoJumpFrame);
+    dinoJumpFrame = {0}; // 重置为无效纹理
+
+    for (auto& tex : smallCactusTextures)
+    {
+        if (tex.id > 0) UnloadTexture(tex);
+    }
+    smallCactusTextures.clear();
+
+    for (auto& tex : bigCactusTextures)
+    {
+        if (tex.id > 0) UnloadTexture(tex);
+    }
+    bigCactusTextures.clear();
+
+    for (auto& tex : roadSegmentTextures)
+    {
+        if (tex.id > 0) UnloadTexture(tex);
+    }
+    roadSegmentTextures.clear();
+}
+
+void Game::InitGame()
+{
     // groundY 会在 HandleWindowResize 中设置，或基于初始 screenHeight
     // 确保在创建恐龙之前 groundY 是正确的
-    this->groundY = static_cast<float>(screenHeight) * 0.85f; // 地面在屏幕85%的高度
+    this->groundY = static_cast<float>(virtualScreenHeight) * 0.85f; // 地面在屏幕85%的高度
 
     if (dino) delete dino;
     dino = new Dinosaur(80.0f, groundY, dinoRunFrames, dinoJumpFrame);
@@ -94,8 +244,8 @@ void Game::InitGame() {
     obstacleSpawnTimer = 0.0f;
     // 设置一个初始的随机生成间隔
     currentObstacleSpawnInterval = minObstacleSpawnInterval +
-                                   static_cast<float>(rand()) / (static_cast<float>(
-                                       RAND_MAX / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
+        static_cast<float>(rand()) / (static_cast<float>(
+            RAND_MAX / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
 
 
     InitRoadSegments(); // 初始化地面
@@ -103,18 +253,16 @@ void Game::InitGame() {
 }
 
 
-void Game::InitRoadSegments() {
+void Game::InitRoadSegments()
+{
     activeRoadSegments.clear();
     totalRoadWidthCovered = 0.0f;
 
-    if (roadSegmentTextures.empty() || roadSegmentTextures[0].id == 0) {
-        TraceLog(LOG_WARNING, "Road textures not loaded, cannot initialize road segments.");
-        return;
-    }
+    if (roadSegmentTextures.empty() || roadSegmentTextures[0].id == 0) return;
 
-    // 初始填充路面，直到覆盖屏幕宽度再加一个路段的宽度作为缓冲
-    while (totalRoadWidthCovered < screenWidth + roadSegmentTextures[0].width) {
-        // 假设所有路段宽度相似
+    // 使用 virtualScreenWidth
+    while (totalRoadWidthCovered < virtualScreenWidth + roadSegmentTextures[0].width)
+    {
         int randIdx = rand() % roadSegmentTextures.size();
         Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
         activeRoadSegments.push_back({chosenRoadTex, totalRoadWidthCovered});
@@ -122,61 +270,78 @@ void Game::InitRoadSegments() {
     }
 }
 
-void Game::UpdateRoadSegments(float deltaTime) {
+void Game::UpdateRoadSegments(float deltaTime)
+{
     if (roadSegmentTextures.empty()) return;
-
-    totalRoadWidthCovered = 0; // 重新计算当前覆盖宽度
+    totalRoadWidthCovered = 0;
     float rightmostX = 0;
 
-    for (auto &segment: activeRoadSegments) {
+    for (auto& segment : activeRoadSegments)
+    {
         segment.xPosition -= gameSpeed * deltaTime;
-        if (segment.xPosition + segment.texture.width > rightmostX) {
+        if (segment.xPosition + segment.texture.width > rightmostX)
+        {
             rightmostX = segment.xPosition + segment.texture.width;
         }
     }
-    totalRoadWidthCovered = rightmostX; // 最右边的路段的右边缘
+    totalRoadWidthCovered = rightmostX;
 
-    // 移除完全移出屏幕左侧的路段
     while (!activeRoadSegments.empty() && activeRoadSegments.front().xPosition + activeRoadSegments.front().texture.
-           width < 0) {
+        width < 0)
+    {
         activeRoadSegments.pop_front();
     }
 
-    // 如果右侧有空间，添加新的路段
-    while (totalRoadWidthCovered < screenWidth + roadSegmentTextures[0].width * 2) {
-        // 保留一些缓冲
+    // 使用 virtualScreenWidth
+    while (totalRoadWidthCovered < virtualScreenWidth + roadSegmentTextures[0].width * 2)
+    {
         int randIdx = rand() % roadSegmentTextures.size();
         Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
-        float newX = totalRoadWidthCovered; // 新路段紧接着之前的路段
-        if (!activeRoadSegments.empty()) {
-            // 以免totalRoadWidthCovered在移除后未及时更新
+        float newX = totalRoadWidthCovered;
+        if (!activeRoadSegments.empty())
+        {
             newX = activeRoadSegments.back().xPosition + activeRoadSegments.back().texture.width;
-        } else {
-            // 如果路段都移除了，从0开始
+        }
+        else
+        {
             newX = 0;
         }
-
         activeRoadSegments.push_back({chosenRoadTex, newX});
         totalRoadWidthCovered = newX + chosenRoadTex.width;
     }
 }
 
 
-void Game::Run() {
-    while (!WindowShouldClose()) {
+void Game::Run()
+{
+    while (!WindowShouldClose())
+    {
         float deltaTime = GetFrameTime();
 
-        if (IsWindowResized() && !IsWindowMinimized()) {
-            // 窗口最小化时不处理resize
+        // 注意 HandleInput 应该在 IsWindowResized 检查之前或之后都可以，
+        // 但如果 HandleInput 中有 ToggleFullscreen，它会导致尺寸变化。
+        HandleInput(); // 处理F11等
+
+        if (IsWindowResized() && !IsWindowMinimized())
+        {
+            // 这个 HandleWindowResize 主要处理用户拖动窗口或最大化/恢复操作
+            // ToggleFullscreen 后的尺寸变化，我们在 HandleInput 里直接处理了核心的缩放更新
+            // 但为了统一，可以让 HandleWindowResize 被更广泛地调用
+            // 或者确保 ToggleFullscreen 后的 UpdateRenderTextureScaling 足够。
+            // 目前的设计，ToggleFullscreen 之后手动更新 screenWidth/Height 和调用 UpdateRenderTextureScaling 是可以的。
+            // 如果 HandleWindowResize 做了更多事情，也可以在 ToggleFullscreen 后调用它。
             HandleWindowResize();
         }
 
-        HandleInput();
 
-        if (currentState == GameState::PLAYING) {
+        if (currentState == GameState::PLAYING)
+        {
             UpdateGame(deltaTime);
-        } else if (currentState == GameState::GAME_OVER) {
-            if (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        }
+        else if (currentState == GameState::GAME_OVER)
+        {
+            if (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            {
                 ResetGame();
             }
         }
@@ -184,32 +349,91 @@ void Game::Run() {
     }
 }
 
-void Game::HandleInput() {
-    if (currentState == GameState::PLAYING) {
-        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            dino->Jump();
+void Game::HandleInput()
+{
+    // 全屏切换 (应该在游戏状态判断之前，以便任何时候都能切换)
+    if (IsKeyPressed(KEY_F11))
+    {
+        // 检查窗口当前是否已经是无边框全屏状态
+        // Raylib 没有直接的 IsBorderlessWindowed() 函数，
+        // 但我们可以通过比较窗口尺寸和屏幕尺寸来判断，或者维护一个状态变量。
+
+        if (IsWindowFullscreen())
+        {
+            // 如果是独占全屏，先退出
+            ToggleFullscreen(); // 这会回到窗口模式
+        }
+
+        // 切换无边框窗口状态
+        // 如果当前是普通窗口，则尝试进入无边框全屏
+        // 如果已经是无边框（通过尺寸判断），则恢复
+        if (GetScreenWidth() == GetMonitorWidth(GetCurrentMonitor()) &&
+            GetScreenHeight() == GetMonitorHeight(GetCurrentMonitor()) &&
+            (IsWindowState(FLAG_WINDOW_UNDECORATED) || !IsWindowState(FLAG_WINDOW_RESIZABLE)) // 近似判断
+        )
+        {
+            // 当前像是无边框全屏，恢复到普通窗口
+            // 1. 移除无边框标志 (如果之前设置了)
+            ClearWindowState(FLAG_WINDOW_UNDECORATED);
+            // 2. 允许调整大小 (如果之前禁用了)
+            SetWindowState(FLAG_WINDOW_RESIZABLE);
+            // 3. 设置回 InitWindow 时的尺寸或一个合理的窗口尺寸
+            //    这里我们用虚拟屏幕尺寸作为恢复后的窗口尺寸
+            SetWindowSize(virtualScreenWidth, virtualScreenHeight);
+            // 4. 居中窗口 (可选)
+            SetWindowPosition(GetMonitorWidth(GetCurrentMonitor()) / 2 - virtualScreenWidth / 2,
+                              GetMonitorHeight(GetCurrentMonitor()) / 2 - virtualScreenHeight / 2);
+        }
+        else
+        {
+            // 当前是普通窗口，切换到无边框全屏
+            int monitor = GetCurrentMonitor();
+            SetWindowState(FLAG_WINDOW_UNDECORATED); // 移除边框
+            SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+            SetWindowPosition(0, 0);
+            // 注意：某些情况下，SetWindowState(FLAG_WINDOW_UNDECORATED) 后再 SetWindowSize 可能效果更好
+            // 或者反过来。可以试验一下。
+        }
+
+        // 任何窗口尺寸或状态改变后，都调用 HandleWindowResize
+        HandleWindowResize();
+    }
+
+
+    if (currentState == GameState::PLAYING)
+    {
+        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            if (dino) dino->Jump();
         }
     }
+    // Game Over 状态下的输入处理 (R键重启) 在 Run() 循环中已经有了
 }
 
-void Game::UpdateGame(float deltaTime) {
+void Game::UpdateGame(float deltaTime)
+{
     dino->Update(deltaTime);
     UpdateRoadSegments(deltaTime);
 
     // 更新障碍物
-    for (auto it = obstacles.begin(); it != obstacles.end(); /* manual increment */) {
+    for (auto it = obstacles.begin(); it != obstacles.end(); /* manual increment */)
+    {
         it->Update(deltaTime);
-        if (it->IsOffScreen(static_cast<float>(screenWidth))) {
+        if (it->IsOffScreen(static_cast<float>(screenWidth)))
+        {
             it = obstacles.erase(it);
             score += 10;
-        } else {
+        }
+        else
+        {
             ++it;
         }
     }
 
     // 生成新的障碍物
     obstacleSpawnTimer += deltaTime;
-    if (obstacleSpawnTimer >= currentObstacleSpawnInterval) {
+    if (obstacleSpawnTimer >= currentObstacleSpawnInterval)
+    {
         SpawnObstacle();
         obstacleSpawnTimer = 0.0f;
         // 更新下次生成间隔，可以随分数或时间增加难度
@@ -222,8 +446,8 @@ void Game::UpdateGame(float deltaTime) {
 
 
         currentObstacleSpawnInterval = actualMinInterval +
-                                       static_cast<float>(rand()) / (static_cast<float>(
-                                           RAND_MAX / (actualMaxInterval - actualMinInterval)));
+            static_cast<float>(rand()) / (static_cast<float>(
+                RAND_MAX / (actualMaxInterval - actualMinInterval)));
     }
 
     // 游戏速度随分数增加 (可选)
@@ -233,8 +457,10 @@ void Game::UpdateGame(float deltaTime) {
     CheckCollisions();
 }
 
-void Game::SpawnObstacle() {
-    if (smallCactusTextures.empty() && bigCactusTextures.empty()) {
+void Game::SpawnObstacle()
+{
+    if (smallCactusTextures.empty() && bigCactusTextures.empty())
+    {
         TraceLog(LOG_WARNING, "No cactus textures loaded, cannot spawn obstacle.");
         return;
     }
@@ -242,30 +468,66 @@ void Game::SpawnObstacle() {
     Texture2D chosenCactusTex;
     int typeChoice = rand() % 2; // 0 for small, 1 for big (if available)
 
-    if (typeChoice == 0 && !smallCactusTextures.empty()) {
+    if (typeChoice == 0 && !smallCactusTextures.empty())
+    {
         int randIdx = rand() % smallCactusTextures.size();
         chosenCactusTex = smallCactusTextures[randIdx];
-    } else if (!bigCactusTextures.empty()) {
+    }
+    else if (!bigCactusTextures.empty())
+    {
         // typeChoice == 1 or small ones are unavailable
         int randIdx = rand() % bigCactusTextures.size();
         chosenCactusTex = bigCactusTextures[randIdx];
-    } else if (!smallCactusTextures.empty()) {
+    }
+    else if (!smallCactusTextures.empty())
+    {
         // Fallback to small if big was chosen but unavailable
         int randIdx = rand() % smallCactusTextures.size();
         chosenCactusTex = smallCactusTextures[randIdx];
-    } else {
+    }
+    else
+    {
         return; // Should not happen if check at start is done
     }
 
-    if (chosenCactusTex.id > 0) {
-        obstacles.emplace_back(static_cast<float>(screenWidth + 50), groundY, gameSpeed, chosenCactusTex);
+    if (chosenCactusTex.id > 0)
+    {
+        obstacles.emplace_back(static_cast<float>(virtualScreenWidth + 50), groundY, gameSpeed, chosenCactusTex);
     }
 }
 
-void Game::CheckCollisions() {
+void Game::UpdateRenderTextureScaling()
+{
+    // 计算缩放比例，保持宽高比
+    float scale = std::min(static_cast<float>(GetScreenWidth()) / virtualScreenWidth,
+                           static_cast<float>(GetScreenHeight()) / virtualScreenHeight);
+
+    // 计算渲染纹理在屏幕上绘制的区域 (destRec) 和原点，使其居中
+    destRec.width = virtualScreenWidth * scale;
+    destRec.height = virtualScreenHeight * scale;
+    destRec.x = (static_cast<float>(GetScreenWidth()) - destRec.width) / 2.0f;
+    destRec.y = (static_cast<float>(GetScreenHeight()) - destRec.height) / 2.0f;
+
+    // 从渲染纹理中取样的区域 (sourceRec) 是整个渲染纹理
+    // 但要注意 Raylib 中 RenderTexture 的 Y 轴是反的，如果直接绘制
+    // sourceRec = { 0.0f, 0.0f, static_cast<float>(targetRenderTexture.texture.width), static_cast<float>(targetRenderTexture.texture.height) };
+    // 为了正确显示，Y 轴需要翻转
+    sourceRec = {
+        0.0f, 0.0f, static_cast<float>(targetRenderTexture.texture.width),
+        -static_cast<float>(targetRenderTexture.texture.height)
+    };
+
+
+    origin = {0.0f, 0.0f}; // 绘制时的原点
+}
+
+void Game::CheckCollisions()
+{
     Rectangle dinoRect = dino->GetCollisionRect();
-    for (const auto &obs: obstacles) {
-        if (CheckCollisionRecs(dinoRect, obs.GetCollisionRect())) {
+    for (const auto& obs : obstacles)
+    {
+        if (CheckCollisionRecs(dinoRect, obs.GetCollisionRect()))
+        {
             currentState = GameState::GAME_OVER;
             // TODO: Play game over sound
             break;
@@ -273,13 +535,16 @@ void Game::CheckCollisions() {
     }
 }
 
-void Game::DrawRoadSegments() {
-    if (roadSegmentTextures.empty()) {
+void Game::DrawRoadSegments()
+{
+    if (roadSegmentTextures.empty())
+    {
         // 如果没有地面纹理，画一条线
-        DrawLine(0, static_cast<int>(groundY), screenWidth, static_cast<int>(groundY), DARKGRAY);
+        DrawLine(0, static_cast<int>(groundY), virtualScreenWidth, static_cast<int>(groundY), DARKGRAY);
         return;
     }
-    for (const auto &segment: activeRoadSegments) {
+    for (const auto& segment : activeRoadSegments)
+    {
         DrawTexture(segment.texture, static_cast<int>(segment.xPosition),
                     static_cast<int>(groundY - segment.texture.height), WHITE);
         // 假设 groundY 是恐龙脚踩的线，地面纹理画在它的上面，底部对齐 groundY
@@ -302,62 +567,78 @@ void Game::DrawRoadSegments() {
 }
 
 
-void Game::DrawGame() {
-    BeginDrawing();
-    ClearBackground(RAYWHITE); // 天空背景色
+void Game::DrawGame()
+{
+    // 1. 开始绘制到渲染纹理 (我们的虚拟屏幕)
+    BeginTextureMode(targetRenderTexture);
+    ClearBackground(RAYWHITE); // 清除渲染纹理的背景
 
-    DrawRoadSegments(); // 绘制地面
+    // --- 所有游戏元素的绘制都发生在这里，使用虚拟坐标 ---
+    DrawRoadSegments(); // 路面绘制逻辑中 X 坐标基于 virtualScreenWidth
+    if (dino) dino->Draw();
+    for (auto& obs : obstacles) obs.Draw();
 
-    if (dino) dino->Draw(); // 绘制恐龙
-
-    for (auto &obs: obstacles) {
-        // 绘制障碍物
-        obs.Draw();
-    }
-
-    // 绘制分数
+    // 分数和 Game Over 文本也绘制在虚拟屏幕上
     DrawText(TextFormat("Score: %05d", score), 20, 20, 30, DARKGRAY);
-    // DrawText(TextFormat("Speed: %.0f", gameSpeed), 20, 60, 20, DARKGRAY); // Debug speed
-
-    if (currentState == GameState::GAME_OVER) {
-        DrawText("GAME OVER", screenWidth / 2 - MeasureText("GAME OVER", 60) / 2, screenHeight / 2 - 60, 60, RED);
-        DrawText("Press R or Click to Restart", screenWidth / 2 - MeasureText("Press R or Click to Restart", 20) / 2,
-                 screenHeight / 2 + 10, 20, DARKGRAY);
+    if (currentState == GameState::GAME_OVER)
+    {
+        DrawText("GAME OVER", virtualScreenWidth / 2 - MeasureText("GAME OVER", 60) / 2, virtualScreenHeight / 2 - 60,
+                 60, RED);
+        DrawText("Press R or Click to Restart",
+                 virtualScreenWidth / 2 - MeasureText("Press R or Click to Restart", 20) / 2,
+                 virtualScreenHeight / 2 + 10, 20, DARKGRAY);
     }
+    // --- 结束虚拟屏幕绘制 ---
+
+    EndTextureMode(); // 结束绘制到渲染纹理
+
+    // 2. 开始绘制到实际窗口屏幕
+    BeginDrawing();
+    ClearBackground(BLACK); // 清除物理屏幕的背景 (letterbox/pillarbox 颜色)
+
+    // 将渲染纹理绘制到屏幕上，应用缩放和居中
+    DrawTexturePro(targetRenderTexture.texture, sourceRec, destRec, origin, 0.0f, WHITE);
+
+    // (可选) 可以在这里绘制一些不参与游戏逻辑缩放的UI，比如调试信息
+    DrawFPS(10, GetScreenHeight() - 30); // 在物理屏幕的左下角绘制FPS
 
     EndDrawing();
 }
 
-void Game::ResetGame() {
+void Game::ResetGame()
+{
     InitGame(); // 重新初始化游戏状态
     HandleWindowResize(); // 确保所有内容适应当前窗口大小
 }
 
-void Game::HandleWindowResize() {
+void Game::HandleWindowResize()
+{
+    // screenWidth 和 screenHeight 已经是物理窗口的当前尺寸
     screenWidth = GetScreenWidth();
     screenHeight = GetScreenHeight();
 
-    // 更新地面Y坐标
-    groundY = static_cast<float>(screenHeight) * 0.85f; // 地面在屏幕85%的高度
+    UpdateRenderTextureScaling(); // 更新缩放参数
 
-    // 更新恐龙位置和内部 groundY
-    if (dino) {
+    // 游戏逻辑中的 groundY 等仍然基于 virtualScreenHeight
+    groundY = static_cast<float>(virtualScreenHeight) * 0.85f;
+
+    if (dino)
+    {
         dino->groundY = groundY;
-        // 当窗口调整时，恐龙的脚应该仍然在新的 groundY 上
         dino->position.y = groundY - dino->GetHeight();
         dino->UpdateCollisionRect();
     }
 
-    // 更新现有障碍物的位置（如果需要，但通常障碍物生成时会使用新的screenWidth和groundY）
-    // 如果障碍物Y坐标依赖旧的groundY，则需要调整，但我们的实现是让其底部对齐新的groundY
-    for (auto &obs: obstacles) {
-        if (obs.texture.id > 0) {
+    for (auto& obs : obstacles)
+    {
+        if (obs.texture.id > 0)
+        {
             obs.position.y = groundY - static_cast<float>(obs.texture.height);
-        } // else 保持，因为没有纹理高度信息
+        }
         obs.UpdateCollisionRect();
     }
 
-    // 重新初始化/调整路面段以适应新的屏幕宽度
-    InitRoadSegments(); // 最简单的方法是重新生成路面
-    TraceLog(LOG_INFO, "Window resized: %dx%d, New groundY: %.2f", screenWidth, screenHeight, groundY);
+    InitRoadSegments(); // 路面段基于 virtualScreenWidth
+    TraceLog(LOG_INFO, "Window resized: %dx%d. Render target scale: %.2f", screenWidth, screenHeight,
+             destRec.width / virtualScreenWidth);
 }

@@ -27,6 +27,14 @@ private:
     int screenWidth;
     int screenHeight;
 
+    // 新增：虚拟屏幕尺寸和渲染纹理
+    const int virtualScreenWidth = 800; // 你希望的游戏逻辑宽度
+    const int virtualScreenHeight = 450; // 你希望的游戏逻辑高度
+    RenderTexture2D targetRenderTexture; // 我们的画布
+    Rectangle sourceRec; // 从渲染纹理中取样的区域
+    Rectangle destRec; // 渲染纹理绘制到屏幕的区域
+    Vector2 origin; // 绘制时的原点，用于居中
+
     Dinosaur *dino;
     std::vector<Obstacle> obstacles;
 
@@ -54,6 +62,8 @@ private:
 
     std::deque<RoadSegment> activeRoadSegments;
     float totalRoadWidthCovered; // 用于判断何时添加新的路段
+
+    void UpdateRenderTextureScaling();
 
     void InitGame();
 
