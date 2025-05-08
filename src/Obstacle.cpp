@@ -19,7 +19,7 @@ Obstacle::Obstacle(const float startX, const float groundYPos, const float obsta
         obstacleWidth = static_cast<float>(texture.width);
     }
 
-    constexpr float visualOffset = 5.0f; // 向下嵌入1个像素 (可调整)
+    constexpr float visualOffset = 8.0f; // 向下嵌入1个像素 (可调整)
     // 原来的计算: position.y = groundYPos - obstacleHeight;
     // 新的计算: 顶部Y = (地面Y + 偏移) - 高度
     position = {startX, (groundYPos + visualOffset) - obstacleHeight};

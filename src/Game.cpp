@@ -18,7 +18,7 @@ Game::Game(int width, int height, const char* title)
       timePlayed(0.0f),
       score(0),
       obstacleSpawnTimer(0.0f),
-      minObstacleSpawnInterval(1.2f),
+      minObstacleSpawnInterval(1.0f),
       maxObstacleSpawnInterval(2.4f),
       currentObstacleSpawnInterval(0.0f),
       jumpSound{nullptr}, bgmMusic{nullptr} // 初始化音频句柄
@@ -294,11 +294,11 @@ void Game::HandleInput()
 
     if (currentState == GameState::PLAYING && dino)
     {
-        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W))
         {
             dino->RequestJump();
         }
-        if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
+        if (IsKeyDown(KEY_S))
         {
             dino->StartSneaking();
         }
@@ -321,7 +321,6 @@ void Game::UpdateGame(const float deltaTime)
     score = static_cast<int>(timePlayed * 10);
 
     worldBaseScrollSpeed += worldSpeedIncreaseRate * deltaTime;
-    worldBaseScrollSpeed = std::min(worldBaseScrollSpeed, 750.0f);
     currentWorldScrollSpeed = worldBaseScrollSpeed;
 
     dino->Update(deltaTime);
@@ -343,7 +342,15 @@ void Game::UpdateGame(const float deltaTime)
     }
     for (auto it = birds.begin(); it != birds.end();)
     {
-        it->speed = currentWorldScrollSpeed * 0.92f;
+        // 鸟的速度 = 地图滚动速度 * (1.0 到 1.5 之间的一个随机因子)
+        // 这样鸟的速度总是 >= 地图滚动速度
+        const float birdSpeedFactor = 0.8f + (static_cast<float>(rand() % 71) / 100.0f);
+        // 产生 0.0 到 0.50 的随机数，加上1.0后为 1.0 到 1.5
+        // 或者使用更标准的随机浮点数生成：
+        // float randomExtra = static_cast<float>(rand()) / static_cast<float>(RAND_MAX); // 0.0 to 1.0
+        // birdSpeedFactor = 1.0f + randomExtra * 0.5f; // 1.0 to 1.5
+
+        it->speed = currentWorldScrollSpeed * birdSpeedFactor;
         it->Update(deltaTime);
         if (it->IsOffScreen()) it = birds.erase(it);
         else ++it;
@@ -372,34 +379,38 @@ void Game::SpawnObstacleOrBird()
     if (birdFrames.empty() && smallCactusTextures.empty() && bigCactusTextures.empty()) return;
     float spawnX = static_cast<float>(virtualScreenWidth) + 250.0f + (rand() % 350);
 
-    if (const int entityTypeRoll = rand() % 100; entityTypeRoll < 80 || birdFrames.empty())
+    if (const int entityTypeRoll = rand() % 100; entityTypeRoll < 70 || birdFrames.empty()) // 70% 仙人掌，或者没有鸟帧
     {
-        // 90% 仙人掌
         Texture2D chosenCactusTex;
-        const bool preferSmall = (rand() % 3 != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
-        if (preferSmall && !smallCactusTextures.empty())
-            chosenCactusTex = smallCactusTextures[rand() %
-                smallCactusTextures.size()];
+        if (const bool preferSmall = (rand() % 3 != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
+            preferSmall && !smallCactusTextures.empty())
+            chosenCactusTex = smallCactusTextures[rand() % smallCactusTextures.size()];
         else if (!bigCactusTextures.empty()) chosenCactusTex = bigCactusTextures[rand() % bigCactusTextures.size()];
         else if (!smallCactusTextures.empty())
-            chosenCactusTex = smallCactusTextures[rand() % smallCactusTextures.
-                size()];
+            chosenCactusTex = smallCactusTextures[rand() % smallCactusTextures.size()];
         else return;
         if (chosenCactusTex.id > 0) obstacles.emplace_back(spawnX, groundY, currentWorldScrollSpeed, chosenCactusTex);
     }
     else
     {
-        // 10% 鸟
         if (!birdFrames.empty())
         {
-            const float dinoStandingTop = groundY - dino->runHeight; // 使用 runHeight
+            const float dinoStandingTop = groundY - dino->runHeight;
             const float birdHeight = birdFrames[0].height;
             float spawnY;
-            const int heightTier = rand() % 2;
-            if (heightTier == 0) spawnY = dinoStandingTop - 40 - birdHeight - (rand() % 70);
-            else spawnY = groundY - dino->sneakHeight - birdHeight - 10 - (rand() % 20); // 使用 sneakHeight 计算低飞高度
+            if (const int heightTier = rand() % 2; heightTier == 0)
+                spawnY = dinoStandingTop - 40 - birdHeight - (rand()
+                    % 70);
+            else spawnY = groundY - dino->sneakHeight - birdHeight - 10 - (rand() % 20);
             spawnY = std::max(virtualScreenHeight * 0.15f, std::min(spawnY, groundY - birdHeight - 25.0f));
-            birds.emplace_back(spawnX, spawnY, currentWorldScrollSpeed * 0.92f, birdFrames);
+
+            // --- 当生成鸟时，它的速度会在 UpdateGame 中被正确设置 ---
+            // 这里构造鸟时传入的速度参数会被 UpdateGame 中的逻辑覆盖，但为了保持构造函数签名，我们仍然传入一个值
+            // 例如，可以传入 currentWorldScrollSpeed，或者一个临时值0，因为它会被立刻更新。
+            // 传入 currentWorldScrollSpeed * (1.0f + (static_cast<float>(rand() % 51) / 100.0f)) 也可以，
+            // 但更清晰的做法是在 UpdateGame 中统一处理。
+            // 这里我们传入 currentWorldScrollSpeed 作为初始值，它会被 UpdateGame 循环覆盖。
+            birds.emplace_back(spawnX, spawnY, currentWorldScrollSpeed, birdFrames);
         }
     }
 }

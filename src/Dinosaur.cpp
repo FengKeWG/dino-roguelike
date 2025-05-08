@@ -16,7 +16,8 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
       frameTimeCounter(0.0f), animationSpeed(0.08f),
       groundY(initialGroundY), runHeight(0.0f), sneakHeight(0.0f),
       coyoteTimeCounter(0.0f), jumpBufferCounter(0.0f),
-      jumpQueued(false)
+      jumpQueued(false),
+      sneakGravityMultiplier(2.5f)
 {
     // 计算高度
     if (!runFrames.empty() && runFrames[0].id > 0) { runHeight = static_cast<float>(runFrames[0].height); }
@@ -80,7 +81,16 @@ void Dinosaur::Update(const float deltaTime)
         isJumping = true;
     }
 
-    if (!onGround) { velocity.y += gravity * deltaTime; }
+    float currentEffectiveGravity = gravity;
+    if (isSneaking && !onGround) // 如果在下蹲状态并且在空中
+    {
+        currentEffectiveGravity *= sneakGravityMultiplier; // 应用更大的重力
+    }
+
+    if (!onGround)
+    {
+        velocity.y += currentEffectiveGravity * deltaTime; // <<< 修改：使用 currentEffectiveGravity
+    }
     position.y += velocity.y * deltaTime;
     onGround = IsOnGround();
 
@@ -91,7 +101,7 @@ void Dinosaur::Update(const float deltaTime)
             // 确认是落地或静止在地面
             velocity.y = 0;
             // *** 修改这里：让恐龙稍微“嵌入”地面 ***
-            float visualOffset = 1.0f; // 向下嵌入1个像素 (可调整)
+            float visualOffset = 5.0f; // 向下嵌入1个像素 (可调整)
             position.y = (groundY - GetHeight()) + visualOffset; // Y坐标向下微调
             // 确保不会因为调整而导致 IsOnGround() 判定错误（理论上不会，因为 IsOnGround 容差更大）
             if (isJumping)
