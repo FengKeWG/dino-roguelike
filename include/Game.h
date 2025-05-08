@@ -1,9 +1,9 @@
-#ifndef GAME_HPP
-#define GAME_HPP
+#ifndef GAME_H
+#define GAME_H
 
 #include "raylib.h"
-#include "Dinosaur.hpp"
-#include "Obstacle.hpp"
+#include "Dinosaur.h"
+#include "Obstacle.h"
 #include <vector>
 #include <string>
 #include <deque> // For road segments

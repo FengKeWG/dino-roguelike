@@ -1,5 +1,5 @@
-#ifndef DINOSAUR_HPP
-#define DINOSAUR_HPP
+#ifndef DINOSAUR_H
+#define DINOSAUR_H
 
 #include "raylib.h"
 #include <vector>

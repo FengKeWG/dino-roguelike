@@ -1,4 +1,4 @@
-#include "../include/Game.hpp"
+#include "../include/Game.h"
 
 int main() {
     constexpr int screenWidth = 800;

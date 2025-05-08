@@ -1,5 +1,5 @@
-#ifndef OBSTACLE_HPP
-#define OBSTACLE_HPP
+#ifndef OBSTACLE_H
+#define OBSTACLE_H
 
 #include "raylib.h"
 
