@@ -1,4 +1,4 @@
-#include "../include/Game.h"
+#include "../include/Game.hpp"
 #include "raymath.h"
 #include <iostream>
 #include <cstdlib> // For rand(), srand()

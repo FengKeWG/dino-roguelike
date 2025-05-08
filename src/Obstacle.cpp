@@ -1,4 +1,4 @@
-#include "../include/Obstacle.h"
+#include "../include/Obstacle.hpp"
 #include <iostream>
 
 Obstacle::Obstacle(float startX, float groundYPos, float obstacleSpeed, Texture2D tex)

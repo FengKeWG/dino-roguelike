@@ -2,8 +2,8 @@
 #define GAME_H
 
 #include "raylib.h"
-#include "Dinosaur.h"
-#include "Obstacle.h"
+#include "Dinosaur.hpp"
+#include "Obstacle.hpp"
 #include <vector>
 #include <string>
 #include <deque> // For road segments

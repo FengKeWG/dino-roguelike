@@ -12,11 +12,11 @@ include_directories(${RAYLIB_PATH}/include)
 # 添加可执行文件
 add_executable(DinoRoguelike src/main.cpp
         src/Dinosaur.cpp
-        include/Dinosaur.h
+        include/Dinosaur.hpp
         src/Obstacle.cpp
-        include/Obstacle.h
+        include/Obstacle.hpp
         src/Game.cpp
-        include/Game.h
+        include/Game.hpp
 )
 
 # 链接 raylib 库

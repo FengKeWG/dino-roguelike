@@ -1,4 +1,4 @@
-#include "../include/Dinosaur.h"
+#include "../include/Dinosaur.hpp"
 #include <iostream>
 
 Dinosaur::Dinosaur(float startX, float initialGroundY, const std::vector<Texture2D> &frames, Texture2D jumpTex)
