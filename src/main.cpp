@@ -1,13 +1,11 @@
-#include "raylib.h"
+#include "../include/Game.h"
 
 int main() {
-    InitWindow(1920, 1080, "Dino Roguelike");
-    while (!WindowShouldClose()) {
-        BeginDrawing();
-        ClearBackground(RAYWHITE);
-        DrawText("Hello, World!", 400, 380, 200, BLACK);
-        EndDrawing();
-    }
-    CloseWindow();
+    constexpr int screenWidth = 800;
+    constexpr int screenHeight = 450;
+
+    Game game(screenWidth, screenHeight, "Google Dino Clone");
+    game.Run();
+
     return 0;
 }
