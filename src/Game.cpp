@@ -1,5 +1,4 @@
 #include "../include/Game.h" // 确保此路径正确
-#include "raymath.h"
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
@@ -22,7 +21,7 @@ Game::Game(int width, int height, const char* title)
       minObstacleSpawnInterval(1.2f),
       maxObstacleSpawnInterval(2.4f),
       currentObstacleSpawnInterval(0.0f),
-      jumpSound{0}, bgmMusic{0} // 初始化音频句柄
+      jumpSound{nullptr}, bgmMusic{nullptr} // 初始化音频句柄
 {
     // 初始化音频句柄
 
@@ -56,7 +55,6 @@ Game::~Game()
 
 void Game::LoadResources()
 {
-    Texture2D tempTex;
     // 清空容器
     dinoRunFrames.clear();
     dinoSneakFrames.clear();
@@ -66,7 +64,7 @@ void Game::LoadResources()
     birdFrames.clear();
 
     // Dino Run (确保文件名是 _1, _2)
-    tempTex = LoadTexture("assets/images/dino_run_1.png"); // 修正路径
+    Texture2D tempTex = LoadTexture("assets/images/dino_run_1.png"); // 修正路径
     if (tempTex.id > 0)
     {
         SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
@@ -201,17 +199,17 @@ void Game::LoadResources()
 
 void Game::UnloadResources()
 {
-    for (auto& tex : dinoRunFrames) if (tex.id > 0) UnloadTexture(tex);
+    for (const auto& tex : dinoRunFrames) if (tex.id > 0) UnloadTexture(tex);
     dinoRunFrames.clear();
-    for (auto& tex : dinoSneakFrames) if (tex.id > 0) UnloadTexture(tex);
+    for (const auto& tex : dinoSneakFrames) if (tex.id > 0) UnloadTexture(tex);
     dinoSneakFrames.clear();
-    for (auto& tex : smallCactusTextures) if (tex.id > 0) UnloadTexture(tex);
+    for (const auto& tex : smallCactusTextures) if (tex.id > 0) UnloadTexture(tex);
     smallCactusTextures.clear();
-    for (auto& tex : bigCactusTextures) if (tex.id > 0) UnloadTexture(tex);
+    for (const auto& tex : bigCactusTextures) if (tex.id > 0) UnloadTexture(tex);
     bigCactusTextures.clear();
-    for (auto& tex : roadSegmentTextures) if (tex.id > 0) UnloadTexture(tex);
+    for (const auto& tex : roadSegmentTextures) if (tex.id > 0) UnloadTexture(tex);
     roadSegmentTextures.clear();
-    for (auto& tex : birdFrames) if (tex.id > 0) UnloadTexture(tex);
+    for (const auto& tex : birdFrames) if (tex.id > 0) UnloadTexture(tex);
     birdFrames.clear();
 
     if (jumpSound.frameCount > 0) UnloadSound(jumpSound);
@@ -225,7 +223,7 @@ void Game::UnloadResources()
 void Game::InitGame()
 {
     groundY = static_cast<float>(virtualScreenHeight) * 0.85f;
-    if (dino) delete dino;
+    delete dino;
     // *** 创建 Dinosaur 时传递 jumpSound ***
     dino = new Dinosaur(virtualScreenWidth / 4.0f, groundY,
                         dinoRunFrames, dinoSneakFrames, jumpSound); // <--- 传递声音
@@ -254,7 +252,7 @@ void Game::HandleInput()
 {
     if (IsKeyPressed(KEY_F11))
     {
-        int currentMonitor = GetCurrentMonitor();
+        const int currentMonitor = GetCurrentMonitor();
         if (IsWindowFullscreen())
         {
             ToggleFullscreen();
@@ -267,9 +265,9 @@ void Game::HandleInput()
             {
                 windowedWidth = screenWidth;
                 windowedHeight = screenHeight;
-                Vector2 pos = GetWindowPosition();
-                windowedPosX = static_cast<int>(pos.x);
-                windowedPosY = static_cast<int>(pos.y);
+                const auto [x, y] = GetWindowPosition();
+                windowedPosX = static_cast<int>(x);
+                windowedPosY = static_cast<int>(y);
             }
             else
             {
@@ -298,11 +296,7 @@ void Game::HandleInput()
     {
         if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
         {
-            // *** 不再在这里播放声音 ***
-            // if (dino->IsOnGround() || dino->coyoteTimeCounter > 0.0f) {
-            //      if (jumpSound.frameCount > 0 && IsAudioDeviceReady()) PlaySound(jumpSound);
-            // }
-            dino->RequestJump(); // 只请求跳跃
+            dino->RequestJump();
         }
         if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
         {
@@ -319,7 +313,7 @@ void Game::HandleInput()
     }
 }
 
-void Game::UpdateGame(float deltaTime)
+void Game::UpdateGame(const float deltaTime)
 {
     if (!dino || currentState == GameState::GAME_OVER) return;
 
@@ -360,14 +354,15 @@ void Game::UpdateGame(float deltaTime)
     {
         SpawnObstacleOrBird();
         obstacleSpawnTimer = 0.0f;
-        float difficultyFactor = 1.0f - (timePlayed / 200.0f);
-        difficultyFactor = std::max(0.20f, difficultyFactor);
-        float actualMin = minObstacleSpawnInterval * difficultyFactor;
-        float actualMax = maxObstacleSpawnInterval * difficultyFactor;
-        if (actualMin < 0.35f) actualMin = 0.35f;
-        if (actualMax < actualMin + 0.18f) actualMax = actualMin + 0.18f;
-        currentObstacleSpawnInterval = actualMin + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (
-            actualMax - actualMin)));
+        if (maxObstacleSpawnInterval <= minObstacleSpawnInterval)
+        {
+            // 如果间隔设置不合理，给一个默认范围，并打印警告
+            maxObstacleSpawnInterval = minObstacleSpawnInterval + 0.5f;
+            TraceLog(LOG_WARNING, "maxObstacleSpawnInterval was <= minObstacleSpawnInterval, adjusted range.");
+        }
+        // 在基础最小和最大间隔之间随机选择下一个间隔
+        currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (static_cast<float>(
+            RAND_MAX / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
     }
     CheckCollisions();
 }
@@ -377,12 +372,11 @@ void Game::SpawnObstacleOrBird()
     if (birdFrames.empty() && smallCactusTextures.empty() && bigCactusTextures.empty()) return;
     float spawnX = static_cast<float>(virtualScreenWidth) + 250.0f + (rand() % 350);
 
-    int entityTypeRoll = rand() % 100;
-    if (entityTypeRoll < 80 || birdFrames.empty())
+    if (const int entityTypeRoll = rand() % 100; entityTypeRoll < 80 || birdFrames.empty())
     {
         // 90% 仙人掌
         Texture2D chosenCactusTex;
-        bool preferSmall = (rand() % 3 != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
+        const bool preferSmall = (rand() % 3 != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
         if (preferSmall && !smallCactusTextures.empty())
             chosenCactusTex = smallCactusTextures[rand() %
                 smallCactusTextures.size()];
@@ -396,12 +390,12 @@ void Game::SpawnObstacleOrBird()
     else
     {
         // 10% 鸟
-        if (!birdFrames.empty() && dino)
+        if (!birdFrames.empty())
         {
-            float dinoStandingTop = groundY - dino->runHeight; // 使用 runHeight
-            float birdHeight = birdFrames[0].height;
+            const float dinoStandingTop = groundY - dino->runHeight; // 使用 runHeight
+            const float birdHeight = birdFrames[0].height;
             float spawnY;
-            int heightTier = rand() % 2;
+            const int heightTier = rand() % 2;
             if (heightTier == 0) spawnY = dinoStandingTop - 40 - birdHeight - (rand() % 70);
             else spawnY = groundY - dino->sneakHeight - birdHeight - 10 - (rand() % 20); // 使用 sneakHeight 计算低飞高度
             spawnY = std::max(virtualScreenHeight * 0.15f, std::min(spawnY, groundY - birdHeight - 25.0f));
@@ -412,8 +406,7 @@ void Game::SpawnObstacleOrBird()
 
 void Game::CheckCollisions()
 {
-    if (!dino || currentState == GameState::GAME_OVER) return;
-    Rectangle dinoRect = dino->GetCollisionRect(); // 使用调整后的碰撞盒
+    const Rectangle dinoRect = dino->GetCollisionRect(); // 使用调整后的碰撞盒
     for (const auto& obs : obstacles)
     {
         if (CheckCollisionRecs(dinoRect, obs.GetCollisionRect()))
@@ -495,8 +488,8 @@ void Game::HandleWindowResize()
 
 void Game::UpdateRenderTextureScaling()
 {
-    float scale = std::min(static_cast<float>(screenWidth) / virtualScreenWidth,
-                           static_cast<float>(screenHeight) / virtualScreenHeight);
+    const float scale = std::min(static_cast<float>(screenWidth) / virtualScreenWidth,
+                                 static_cast<float>(screenHeight) / virtualScreenHeight);
     destRec.width = virtualScreenWidth * scale;
     destRec.height = virtualScreenHeight * scale;
     destRec.x = (static_cast<float>(screenWidth) - destRec.width) / 2.0f;
@@ -515,8 +508,8 @@ void Game::InitRoadSegments()
     float currentX = 0.0f;
     while (currentX < virtualScreenWidth * 1.5f)
     {
-        int randIdx = rand() % roadSegmentTextures.size();
-        Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
+        const int randIdx = rand() % roadSegmentTextures.size();
+        const Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
         activeRoadSegments.push_back({chosenRoadTex, currentX});
         currentX += chosenRoadTex.width;
     }
@@ -557,7 +550,7 @@ void Game::UpdateRoadSegments(float deltaTime)
     }
 }
 
-void Game::DrawRoadSegments()
+void Game::DrawRoadSegments() const
 {
     if (roadSegmentTextures.empty())
     {

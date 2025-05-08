@@ -2,8 +2,8 @@
 
 int main()
 {
-    const int initialScreenWidth = 960;
-    const int initialScreenHeight = 540;
+    constexpr int initialScreenWidth = 960;
+    constexpr int initialScreenHeight = 540;
 
     Game game(initialScreenWidth, initialScreenHeight, "Dino Plus Ultra");
     game.Run();

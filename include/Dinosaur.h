@@ -48,7 +48,7 @@ public:
     Dinosaur(float startX, float initialGroundY,
              const std::vector<Texture2D>& runTex,
              const std::vector<Texture2D>& sneakTex,
-             Sound jumpSound);
+             const Sound& jumpSound);
     ~Dinosaur();
 
     void RequestJump(); // 玩家请求跳跃 (由Game类在输入时调用)
@@ -56,7 +56,7 @@ public:
     void StopSneaking(); // 恢复跑动姿态
     void Move(float direction, float deltaTime); // 处理左右移动输入
     void Update(float deltaTime); // 更新状态、物理、动画
-    void Draw(); // 绘制恐龙
+    void Draw() const; // 绘制恐龙
 
     Rectangle GetCollisionRect() const; // 获取用于碰撞检测的调整后矩形
     float GetWidth() const; // 获取当前姿态的宽度

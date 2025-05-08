@@ -3,7 +3,8 @@
 
 #include "raylib.h"
 
-class Obstacle {
+class Obstacle
+{
 public:
     Vector2 position;
     float speed; // 由Game的gameSpeed设定
@@ -11,13 +12,13 @@ public:
     Texture2D texture; // 由Game传入具体的仙人掌纹理
 
     // groundYPos 是障碍物底部应该对齐的地面Y坐标
-    Obstacle(float startX, float groundYPos, float obstacleSpeed, Texture2D tex);
+    Obstacle(float startX, float groundYPos, float obstacleSpeed, const Texture2D& tex);
 
     ~Obstacle();
 
     void Update(float deltaTime);
 
-    void Draw();
+    void Draw() const;
 
     Rectangle GetCollisionRect() const;
 

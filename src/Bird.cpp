@@ -1,7 +1,7 @@
 #include "../include/Bird.h"
 #include <iostream>
 
-Bird::Bird(float startX, float startY, float birdSpeed, const std::vector<Texture2D>& frames)
+Bird::Bird(const float startX, const float startY, const float birdSpeed, const std::vector<Texture2D>& frames)
     : speed(birdSpeed), flyFrames(frames), currentFrame(0),
       frameTimeCounter(0.0f), frameSpeed(0.15f)
 {
@@ -25,11 +25,9 @@ Bird::Bird(float startX, float startY, float birdSpeed, const std::vector<Textur
     }
 }
 
-Bird::~Bird()
-{
-}
+Bird::~Bird() = default;
 
-void Bird::Update(float deltaTime)
+void Bird::Update(const float deltaTime)
 {
     position.x -= speed * deltaTime;
 
@@ -47,7 +45,7 @@ void Bird::Update(float deltaTime)
     UpdateCollisionRect();
 }
 
-void Bird::Draw()
+void Bird::Draw() const
 {
     if (!flyFrames.empty() && flyFrames[currentFrame].id > 0)
     {

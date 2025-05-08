@@ -20,7 +20,7 @@ public:
     ~Bird();
 
     void Update(float deltaTime);
-    void Draw();
+    void Draw() const;
     Rectangle GetCollisionRect() const;
     bool IsOffScreen() const;
     float GetWidth() const;

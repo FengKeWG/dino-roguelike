@@ -6,7 +6,6 @@
 #include "Obstacle.h"
 #include "Bird.h"
 #include <vector>
-#include <string>
 #include <deque>
 
 enum class GameState
@@ -87,7 +86,7 @@ private:
     void UpdateRenderTextureScaling();
     void InitRoadSegments();
     void UpdateRoadSegments(float deltaTime);
-    void DrawRoadSegments();
+    void DrawRoadSegments() const;
 };
 
 #endif // GAME_H
