@@ -17,6 +17,8 @@ add_executable(DinoRoguelike src/main.cpp
         include/Obstacle.h
         src/Game.cpp
         include/Game.h
+        src/Bird.cpp
+        include/Bird.h
 )
 
 # 链接 raylib 库

@@ -1,10 +1,11 @@
 #include "../include/Game.h"
 
-int main() {
-    constexpr int screenWidth = 800;
-    constexpr int screenHeight = 450;
+int main()
+{
+    const int initialScreenWidth = 960;
+    const int initialScreenHeight = 540;
 
-    Game game(screenWidth, screenHeight, "Google Dino Clone");
+    Game game(initialScreenWidth, initialScreenHeight, "Dino Plus Ultra");
     game.Run();
 
     return 0;

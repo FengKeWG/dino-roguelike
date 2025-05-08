@@ -4,92 +4,90 @@
 #include "raylib.h"
 #include "Dinosaur.h"
 #include "Obstacle.h"
+#include "Bird.h"
 #include <vector>
 #include <string>
-#include <deque> // For road segments
+#include <deque>
 
-enum class GameState {
+enum class GameState
+{
     PLAYING,
-    GAME_OVER,
-    // MENU, // Future
-    // PAUSED // Future
+    GAME_OVER
 };
 
-class Game {
+class Game
+{
 public:
-    Game(int screenWidth, int screenHeight, const char *title);
-
+    Game(int screenWidth, int screenHeight, const char* title);
     ~Game();
-
     void Run();
 
 private:
     int screenWidth;
     int screenHeight;
+    const int virtualScreenWidth = 960;
+    const int virtualScreenHeight = 540;
+    RenderTexture2D targetRenderTexture;
+    Rectangle sourceRec;
+    Rectangle destRec;
+    Vector2 origin;
 
-    // 新增：虚拟屏幕尺寸和渲染纹理
-    const int virtualScreenWidth = 800; // 你希望的游戏逻辑宽度
-    const int virtualScreenHeight = 450; // 你希望的游戏逻辑高度
-    RenderTexture2D targetRenderTexture; // 我们的画布
-    Rectangle sourceRec; // 从渲染纹理中取样的区域
-    Rectangle destRec; // 渲染纹理绘制到屏幕的区域
-    Vector2 origin; // 绘制时的原点，用于居中
+    bool isFakeFullscreen;
+    int windowedPosX, windowedPosY;
+    int windowedWidth, windowedHeight;
 
-    Dinosaur *dino;
+    Dinosaur* dino;
     std::vector<Obstacle> obstacles;
+    std::vector<Bird> birds;
 
     GameState currentState;
     float groundY;
-    float gameSpeed;
+    float timePlayed;
     int score;
+
+    float worldBaseScrollSpeed;
+    float currentWorldScrollSpeed;
+    float worldSpeedIncreaseRate;
+
     float obstacleSpawnTimer;
     float minObstacleSpawnInterval;
     float maxObstacleSpawnInterval;
-    float currentObstacleSpawnInterval; // 当前实际的生成间隔
+    float currentObstacleSpawnInterval;
 
-    // 资源
+    // 资源纹理 (无 idle, 无 jump)
     std::vector<Texture2D> dinoRunFrames;
-    Texture2D dinoJumpFrame;
-    std::vector<Texture2D> smallCactusTextures; // small_cactus_1, small_cactus_2, small_cactus_3
-    std::vector<Texture2D> bigCactusTextures; // big_cactus_1, big_cactus_2
-    std::vector<Texture2D> roadSegmentTextures; // road_1, road_2, road_3, road_4
+    std::vector<Texture2D> dinoSneakFrames;
+    std::vector<Texture2D> smallCactusTextures;
+    std::vector<Texture2D> bigCactusTextures;
+    std::vector<Texture2D> roadSegmentTextures;
+    std::vector<Texture2D> birdFrames;
 
-    // 地面滚动相关
-    struct RoadSegment {
+    // 音频资源
+    Sound jumpSound;
+    Music bgmMusic;
+
+    struct RoadSegment
+    {
         Texture2D texture;
         float xPosition;
     };
 
     std::deque<RoadSegment> activeRoadSegments;
-    float totalRoadWidthCovered; // 用于判断何时添加新的路段
-
-    void UpdateRenderTextureScaling();
 
     void InitGame();
-
     void UpdateGame(float deltaTime);
-
     void DrawGame();
-
     void HandleInput();
-
-    void SpawnObstacle();
-
+    void SpawnObstacleOrBird();
     void CheckCollisions();
-
     void ResetGame();
-
     void LoadResources();
-
     void UnloadResources();
-
     void HandleWindowResize();
-
-    void InitRoadSegments(); // 初始化地面段
-    void UpdateRoadSegments(float deltaTime); // 更新地面段滚动
-    void DrawRoadSegments(); // 绘制地面段
-
-    // TODO: 扩展元素占位
+    void UpdateRenderTextureScaling();
+    void InitRoadSegments();
+    void UpdateRoadSegments(float deltaTime);
+    void DrawRoadSegments();
 };
 
 #endif // GAME_H

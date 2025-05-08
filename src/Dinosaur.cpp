@@ -1,112 +1,308 @@
 #include "../include/Dinosaur.h"
 #include <iostream>
+#include <cmath>
+#include "raylib.h" // 确保包含
 
-Dinosaur::Dinosaur(float startX, float initialGroundY, const std::vector<Texture2D>& frames, Texture2D jumpTex)
-    : velocity({0, 0}), gravity(1200.0f), jumpSpeed(-500.0f),
-      isJumping(false), runFrames(frames), jumpFrame(jumpTex), currentRunFrameIndex(0),
-      frameTimeCounter(0.0f), frameSpeed(0.1f), // 每0.1秒换一帧
-      groundY(initialGroundY)
+Dinosaur::Dinosaur(float startX, float initialGroundY,
+                   const std::vector<Texture2D>& runTex,
+                   const std::vector<Texture2D>& sneakTex,
+                   Sound jumpSound) // 添加 jumpSound 参数
+    : velocity({0, 0}), gravity(1800.0f), jumpSpeed(-600.0f), moveSpeed(280.0f),
+      isJumping(false), isSneaking(false),
+      facingRight(true),
+      runFrames(runTex), sneakFrames(sneakTex),
+      currentAnimFrameIndex(0), frameTimeCounter(0.0f), animationSpeed(0.08f),
+      groundY(initialGroundY),
+      runHeight(0.0f), sneakHeight(0.0f),
+      coyoteTimeCounter(0.0f), jumpBufferCounter(0.0f), jumpQueued(false),
+      jumpSoundHandle(jumpSound) // <--- 存储声音句柄
 {
-    Texture2D initialTexture = GetCurrentTexture(); // 获取初始纹理（通常是跑动第一帧）
-
-    if (initialTexture.id == 0)
-    {
-        std::cerr << "Warning: Dinosaur initial texture not loaded!" << std::endl;
-        position = {startX, initialGroundY - 50.0f};
-        collisionRect = {position.x, position.y, 30, 50};
-    }
+    // 计算高度
+    if (!runFrames.empty() && runFrames[0].id > 0) { runHeight = static_cast<float>(runFrames[0].height); }
     else
     {
-        position = {startX, initialGroundY - static_cast<float>(initialTexture.height)};
-        collisionRect = {
-            position.x,
-            position.y,
-            static_cast<float>(initialTexture.width),
-            static_cast<float>(initialTexture.height)
-        };
+        TraceLog(LOG_ERROR, "CRITICAL: Dinosaur needs run frames for height!");
+        runHeight = 50.0f;
     }
+    if (!sneakFrames.empty() && sneakFrames[0].id > 0) { sneakHeight = static_cast<float>(sneakFrames[0].height); }
+    else
+    {
+        sneakHeight = runHeight * 0.6f;
+        TraceLog(LOG_WARNING, "Sneak frames missing or invalid, estimating height.");
+    }
+
+    position = {startX, initialGroundY - runHeight};
+    UpdateCollisionRect();
 }
 
 Dinosaur::~Dinosaur()
 {
-    // 纹理的加载和卸载由 Game 类管理
 }
 
-Texture2D Dinosaur::GetCurrentTexture() const
+bool Dinosaur::IsOnGround() const
 {
-    if (isJumping && jumpFrame.id > 0)
-    {
-        return jumpFrame;
-    }
-    if (!runFrames.empty() && runFrames[currentRunFrameIndex].id > 0)
-    {
-        return runFrames[currentRunFrameIndex];
-    }
-    // 返回一个空的或默认的 Texture2D，如果都没有加载成功
-    // 或者在构造函数中确保至少有一个有效纹理或抛出错误
-    return Texture2D{0}; // 表示无效纹理
+    return (position.y + GetHeight() >= groundY - 0.5f);
 }
 
-void Dinosaur::Jump()
+void Dinosaur::RequestJump()
 {
-    if (!isJumping)
+    jumpBufferCounter = jumpBufferDuration;
+    jumpQueued = true;
+}
+
+void Dinosaur::ExecuteJump()
+{
+    // 播放声音现在在这里
+    if (jumpSoundHandle.frameCount > 0 && IsAudioDeviceReady())
     {
-        velocity.y = jumpSpeed;
-        isJumping = true;
-        // TODO: 可以添加跳跃特定帧或状态
+        PlaySound(jumpSoundHandle);
     }
+
+    velocity.y = jumpSpeed;
+    isJumping = true;
+    coyoteTimeCounter = 0.0f;
+    jumpQueued = false;
+    jumpBufferCounter = 0.0f;
+    currentAnimFrameIndex = 0; // 动画重置到跑动/下蹲第一帧
 }
 
 void Dinosaur::Update(float deltaTime)
 {
-    position.y += velocity.y * deltaTime;
-    velocity.y += gravity * deltaTime;
+    if (coyoteTimeCounter > 0.0f) coyoteTimeCounter -= deltaTime;
+    if (jumpBufferCounter > 0.0f) jumpBufferCounter -= deltaTime;
+    if (jumpBufferCounter <= 0.0f) jumpQueued = false;
 
-    if (!isJumping)
+    bool onGround = IsOnGround();
+
+    if (jumpQueued && (onGround || coyoteTimeCounter > 0.0f))
     {
-        // 只在地面上跑动时播放动画
-        frameTimeCounter += deltaTime;
-        if (frameTimeCounter >= frameSpeed)
+        ExecuteJump();
+        onGround = false;
+        isJumping = true;
+    }
+
+    if (!onGround) { velocity.y += gravity * deltaTime; }
+    position.y += velocity.y * deltaTime;
+    onGround = IsOnGround();
+
+    if (onGround)
+    {
+        if (velocity.y >= 0)
         {
-            frameTimeCounter = 0.0f;
-            currentRunFrameIndex++;
-            if (currentRunFrameIndex >= runFrames.size())
+            velocity.y = 0;
+            // *** 关键：让地面吸附逻辑处理高度变化后的 Y 坐标 ***
+            position.y = groundY - GetHeight();
+            if (isJumping)
             {
-                currentRunFrameIndex = 0;
+                isJumping = false;
+                if (jumpQueued && jumpBufferCounter > 0.0f) { ExecuteJump(); }
+            }
+            coyoteTimeCounter = coyoteTimeDuration;
+        }
+    }
+    else
+    {
+        isJumping = true;
+    }
+
+    // --- 动画更新 ---
+    const std::vector<Texture2D>* currentFrames = GetCurrentAnimationFramesPointer();
+    if (currentFrames && !currentFrames->empty())
+    {
+        // 无论是否跳跃，只要不在地面，就固定动画帧（或者你可以设计跳跃动画）
+        // 当前设计是空中时显示第一帧
+        if (isJumping)
+        {
+            currentAnimFrameIndex = 0;
+        }
+        else
+        {
+            // 在地面时正常播放动画
+            frameTimeCounter += deltaTime;
+            if (frameTimeCounter >= animationSpeed)
+            {
+                frameTimeCounter = 0.0f;
+                currentAnimFrameIndex++;
+                if (currentAnimFrameIndex >= currentFrames->size())
+                {
+                    currentAnimFrameIndex = 0;
+                }
             }
         }
     }
-    // 跳跃时，GetCurrentTexture() 会自动选择 jumpFrame
-
-    float currentDinoHeight = GetHeight();
-    if (position.y + currentDinoHeight >= groundY)
+    else
     {
-        position.y = groundY - currentDinoHeight;
-        velocity.y = 0;
-        if (isJumping)
-        {
-            // 刚刚落地
-            isJumping = false;
-            // 可以重置跑动动画到第一帧，如果需要
-            // currentRunFrameIndex = 0;
-        }
+        currentAnimFrameIndex = 0;
     }
 
     UpdateCollisionRect();
 }
 
+void Dinosaur::StartSneaking()
+{
+    if (!isSneaking)
+    {
+        // 只有在非下蹲状态才执行切换
+        if (sneakFrames.empty() || sneakFrames[0].id == 0) return; // 无效下蹲帧则不切换
+
+        bool wasOnGround = IsOnGround(); // 记录切换前的地面状态
+        float heightBeforeSneak = GetHeight(); // 获取切换前的高度 (runHeight)
+
+        isSneaking = true; // *** 切换标志 ***
+
+        float heightAfterSneak = GetHeight(); // 获取切换后的高度 (sneakHeight)
+
+        // *** 关键：如果在地面上，手动调整Y坐标以保持脚部位置 ***
+        if (wasOnGround && heightBeforeSneak != heightAfterSneak)
+        {
+            position.y += (heightBeforeSneak - heightAfterSneak); // 向下移动，补偿高度减少
+        }
+        // 如果在空中切换，不调整Y坐标，只改变碰撞盒和视觉
+
+        currentAnimFrameIndex = 0; // 重置下蹲动画
+        frameTimeCounter = 0.0f;
+        // UpdateCollisionRect(); // Update() 末尾会调用
+    }
+}
+
+void Dinosaur::StopSneaking()
+{
+    if (isSneaking)
+    {
+        // 只有在下蹲状态才执行切换
+        // if (sneakFrames.empty() || sneakFrames[0].id == 0) { isSneaking = false; return; } // 不需要检查，因为isSneaking为true
+
+        bool wasOnGround = IsOnGround(); // 记录切换前的地面状态
+        float heightBeforeStand = GetHeight(); // 获取切换前的高度 (sneakHeight)
+
+        isSneaking = false; // *** 切换标志 ***
+
+        float heightAfterStand = GetHeight(); // 获取切换后的高度 (runHeight)
+
+        // *** 关键：如果在地面上，手动调整Y坐标以保持脚部位置 ***
+        if (wasOnGround && heightBeforeStand != heightAfterStand)
+        {
+            position.y -= (heightAfterStand - heightBeforeStand); // 向上移动，补偿高度增加
+            // 微调以防因浮点数误差陷入地下，虽然Update中的吸附应该能处理
+            if (position.y + heightAfterStand > groundY + 0.1f)
+            {
+                // 加一点容差
+                position.y = groundY - heightAfterStand;
+            }
+        }
+        // 如果在空中恢复站立，Y坐标不手动调整
+
+        currentAnimFrameIndex = 0; // 重置跑动动画
+        frameTimeCounter = 0.0f;
+        // UpdateCollisionRect(); // Update() 末尾会调用
+    }
+}
+
+const std::vector<Texture2D>* Dinosaur::GetCurrentAnimationFramesPointer() const
+{
+    // 优先返回下蹲帧（如果正在下蹲且有效）
+    if (isSneaking && !sneakFrames.empty() && sneakFrames[0].id > 0)
+    {
+        return &sneakFrames;
+    }
+    // 否则返回跑动帧
+    return &runFrames;
+}
+
+Texture2D Dinosaur::GetCurrentTextureToDraw() const
+{
+    const std::vector<Texture2D>* frames_ptr = GetCurrentAnimationFramesPointer();
+
+    if (frames_ptr && !frames_ptr->empty())
+    {
+        const std::vector<Texture2D>& frames = *frames_ptr;
+        int frameIdxToUse = currentAnimFrameIndex;
+
+        // 如果在空中并且 *不是* 下蹲状态，强制使用跑动第一帧作为跳跃帧
+        if (isJumping && !isSneaking)
+        {
+            if (!runFrames.empty() && runFrames[0].id > 0)
+            {
+                // 确保跑动帧有效
+                frameIdxToUse = 0;
+                // 直接返回跑动第一帧
+                return runFrames[0];
+            }
+            else
+            {
+                TraceLog(LOG_ERROR, "Cannot get jump texture, runFrames missing!");
+                return Texture2D{0};
+            }
+        }
+
+        // 对于跑动或下蹲状态（地面或空中）
+        if (frameIdxToUse >= 0 && frameIdxToUse < frames.size() && frames[frameIdxToUse].id > 0)
+        {
+            return frames[frameIdxToUse];
+        }
+        else if (!frames.empty() && frames[0].id > 0)
+        {
+            // 索引无效时回退到当前动画组的第一帧
+            TraceLog(LOG_WARNING,
+                     "GetCurrentTextureToDraw: Invalid frame index %d for current state, returning frame 0.",
+                     currentAnimFrameIndex);
+            return frames[0];
+        }
+    }
+
+    // 最终 Fallback
+    if (!runFrames.empty() && runFrames[0].id > 0)
+    {
+        TraceLog(LOG_WARNING, "GetCurrentTextureToDraw: Falling back to runFrames[0].");
+        return runFrames[0];
+    }
+    TraceLog(LOG_ERROR, "GetCurrentTextureToDraw: No valid texture found!");
+    return Texture2D{0};
+}
+
+float Dinosaur::GetHeight() const
+{
+    if (isSneaking && sneakHeight > 0)
+    {
+        return sneakHeight;
+    }
+    return runHeight;
+}
+
+// GetWidth, Move, Draw, UpdateCollisionRect, GetCollisionRect 保持不变
+// ... (粘贴上一版本中这些方法的实现)
+float Dinosaur::GetWidth() const
+{
+    Texture2D tex = GetCurrentTextureToDraw();
+    if (tex.id > 0) return static_cast<float>(std::abs(tex.width));
+    if (!runFrames.empty() && runFrames[0].id > 0) return static_cast<float>(runFrames[0].width);
+    return 44.0f;
+}
+
+void Dinosaur::Move(float direction, float deltaTime)
+{
+    float currentMoveSpeed = moveSpeed;
+    if (isSneaking) { currentMoveSpeed *= 0.5f; }
+    position.x += direction * currentMoveSpeed * deltaTime;
+    if (direction > 0) facingRight = true;
+    else if (direction < 0) facingRight = false;
+}
+
 void Dinosaur::Draw()
 {
-    Texture2D texToDraw = GetCurrentTexture();
+    Texture2D texToDraw = GetCurrentTextureToDraw();
     if (texToDraw.id > 0)
     {
-        DrawTexture(texToDraw, static_cast<int>(position.x), static_cast<int>(position.y), WHITE);
+        Rectangle sourceRec = {0.0f, 0.0f, static_cast<float>(texToDraw.width), static_cast<float>(texToDraw.height)};
+        if (!facingRight) sourceRec.width *= -1;
+        Rectangle destRec = {
+            position.x, position.y, static_cast<float>(std::abs(texToDraw.width)), static_cast<float>(texToDraw.height)
+        };
+        Vector2 origin = {0.0f, 0.0f};
+        DrawTexturePro(texToDraw, sourceRec, destRec, origin, 0.0f, WHITE);
     }
-    else
-    {
-        DrawRectangleRec(GetCollisionRect(), LIME);
-    }
-    // DrawRectangleLinesEx(GetCollisionRect(), 1, RED);
+    else { DrawRectangleRec(GetCollisionRect(), LIME); }
+    // DrawRectangleLinesEx(GetCollisionRect(), 1, BLUE);
 }
 
 void Dinosaur::UpdateCollisionRect()
@@ -119,32 +315,25 @@ void Dinosaur::UpdateCollisionRect()
 
 Rectangle Dinosaur::GetCollisionRect() const
 {
-    // 可以稍微调整碰撞盒，使其更符合实际视觉效果，例如缩小一点
-    // Rectangle adjustedRect = collisionRect;
-    // adjustedRect.x += 5;
-    // adjustedRect.width -= 10;
-    // adjustedRect.y += 5;
-    // adjustedRect.height -= 5;
-    // return adjustedRect;
-    return collisionRect;
-}
-
-float Dinosaur::GetWidth() const
-{
-    Texture2D tex = GetCurrentTexture();
-    if (tex.id > 0)
+    Rectangle originalRect = collisionRect;
+    Rectangle adjustedRect = originalRect;
+    float widthReductionFactor = 0.25f;
+    float heightReductionFactorTop = 0.15f;
+    float heightReductionFactorBottom = 0.08f;
+    if (isSneaking)
     {
-        return static_cast<float>(tex.width);
+        widthReductionFactor = 0.30f;
+        heightReductionFactorTop = 0.20f;
+        heightReductionFactorBottom = 0.05f;
     }
-    return 30.0f;
-}
-
-float Dinosaur::GetHeight() const
-{
-    Texture2D tex = GetCurrentTexture();
-    if (tex.id > 0)
-    {
-        return static_cast<float>(tex.height);
-    }
-    return 50.0f;
+    float horizontalPadding = originalRect.width * widthReductionFactor;
+    float verticalPaddingTop = originalRect.height * heightReductionFactorTop;
+    float verticalPaddingBottom = originalRect.height * heightReductionFactorBottom;
+    adjustedRect.x += horizontalPadding / 2.0f;
+    adjustedRect.width -= horizontalPadding;
+    adjustedRect.y += verticalPaddingTop;
+    adjustedRect.height -= (verticalPaddingTop + verticalPaddingBottom);
+    if (adjustedRect.width < 1.0f) adjustedRect.width = 1.0f;
+    if (adjustedRect.height < 1.0f) adjustedRect.height = 1.0f;
+    return adjustedRect;
 }
