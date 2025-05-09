@@ -10,7 +10,7 @@ Obstacle::Obstacle(const float startX, const float groundYPos, const float obsta
     if (texture.id == 0)
     {
         std::cerr << "Warning: Obstacle texture not loaded!" << std::endl;
-        obstacleHeight = 50.0f; // 默认值
+        obstacleHeight = 50.0f;
         obstacleWidth = 20.0f;
     }
     else
@@ -19,10 +19,7 @@ Obstacle::Obstacle(const float startX, const float groundYPos, const float obsta
         obstacleWidth = static_cast<float>(texture.width);
     }
 
-    constexpr float visualOffset = 8.0f; // 向下嵌入1个像素 (可调整)
-    // 原来的计算: position.y = groundYPos - obstacleHeight;
-    // 新的计算: 顶部Y = (地面Y + 偏移) - 高度
-    position = {startX, (groundYPos + visualOffset) - obstacleHeight};
+    position = {startX, (groundYPos + 8.0f) - obstacleHeight};
 
     collisionRect = {
         position.x,

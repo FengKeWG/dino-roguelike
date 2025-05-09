@@ -11,7 +11,8 @@
 enum class GameState
 {
     PLAYING,
-    GAME_OVER
+    GAME_OVER,
+    PAUSED
 };
 
 class Game
@@ -24,8 +25,8 @@ public:
 private:
     int screenWidth;
     int screenHeight;
-    const int virtualScreenWidth = 960;
-    const int virtualScreenHeight = 540;
+    const int virtualScreenWidth = 960.0f;
+    const int virtualScreenHeight = 540.0f;
     RenderTexture2D targetRenderTexture;
     Rectangle sourceRec;
     Rectangle destRec;
@@ -53,7 +54,7 @@ private:
     float maxObstacleSpawnInterval;
     float currentObstacleSpawnInterval;
 
-    // 资源纹理 (无 idle, 无 jump)
+    // 资源纹理
     std::vector<Texture2D> dinoRunFrames;
     std::vector<Texture2D> dinoSneakFrames;
     std::vector<Texture2D> smallCactusTextures;
@@ -63,6 +64,7 @@ private:
 
     // 音频资源
     Sound jumpSound;
+    Sound dashSound;
     Music bgmMusic;
 
     struct RoadSegment
@@ -75,7 +77,7 @@ private:
 
     void InitGame();
     void UpdateGame(float deltaTime);
-    void DrawGame();
+    void DrawGame() const;
     void HandleInput();
     void SpawnObstacleOrBird();
     void CheckCollisions();

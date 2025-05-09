@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
-Game::Game(int width, int height, const char* title)
+Game::Game(const int width, const int height, const char* title)
     : screenWidth(width), screenHeight(height),
       isFakeFullscreen(false),
       windowedPosX(0), windowedPosY(0),
@@ -18,16 +18,15 @@ Game::Game(int width, int height, const char* title)
       timePlayed(0.0f),
       score(0),
       obstacleSpawnTimer(0.0f),
-      minObstacleSpawnInterval(1.0f),
+      minObstacleSpawnInterval(0.6f),
       maxObstacleSpawnInterval(2.4f),
       currentObstacleSpawnInterval(0.0f),
-      jumpSound{nullptr}, bgmMusic{nullptr} // 初始化音频句柄
+      jumpSound{nullptr}, bgmMusic{nullptr}
 {
-    // 初始化音频句柄
-
     srand(static_cast<unsigned int>(time(nullptr)));
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, title);
+    SetExitKey(KEY_NULL);
     InitAudioDevice(); // 初始化音频设备
     Vector2 initialPos = GetWindowPosition();
     windowedPosX = static_cast<int>(initialPos.x);
@@ -181,6 +180,9 @@ void Game::LoadResources()
     jumpSound = LoadSound("assets/sounds/jump.wav"); // 修正路径
     if (jumpSound.frameCount == 0) TraceLog(LOG_WARNING, "Failed to load sound: assets/sounds/jump.wav");
 
+    dashSound = LoadSound("assets/sounds/dash.wav"); // <--- 加载冲刺音效
+    if (dashSound.frameCount == 0) TraceLog(LOG_WARNING, "Failed to load sound: assets/sounds/dash.wav");
+
     bgmMusic = LoadMusicStream("assets/sounds/bgm.wav"); // 修正路径
     if (bgmMusic.frameCount == 0)
     {
@@ -213,6 +215,7 @@ void Game::UnloadResources()
     birdFrames.clear();
 
     if (jumpSound.frameCount > 0) UnloadSound(jumpSound);
+    if (dashSound.frameCount > 0) UnloadSound(dashSound);
     if (bgmMusic.frameCount > 0)
     {
         StopMusicStream(bgmMusic);
@@ -226,7 +229,8 @@ void Game::InitGame()
     delete dino;
     // *** 创建 Dinosaur 时传递 jumpSound ***
     dino = new Dinosaur(virtualScreenWidth / 4.0f, groundY,
-                        dinoRunFrames, dinoSneakFrames, jumpSound); // <--- 传递声音
+                        dinoRunFrames, dinoSneakFrames,
+                        jumpSound, dashSound); // <--- 传递声音
 
     obstacles.clear();
     birds.clear();
@@ -292,11 +296,36 @@ void Game::HandleInput()
         HandleWindowResize();
     }
 
+    if (IsKeyPressed(KEY_ESCAPE))
+    {
+        if (currentState == GameState::PLAYING)
+        {
+            currentState = GameState::PAUSED;
+            if (bgmMusic.frameCount > 0 && IsMusicStreamPlaying(bgmMusic))
+            {
+                PauseMusicStream(bgmMusic);
+            }
+            TraceLog(LOG_INFO, "Game Paused");
+        }
+        else if (currentState == GameState::PAUSED)
+        {
+            currentState = GameState::PLAYING;
+            if (bgmMusic.frameCount > 0)
+            {
+                ResumeMusicStream(bgmMusic);
+            }
+            TraceLog(LOG_INFO, "Game Resumed");
+        }
+    }
     if (currentState == GameState::PLAYING && dino)
     {
         if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W))
         {
             dino->RequestJump();
+        }
+        if (IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT))
+        {
+            dino->RequestDash();
         }
         if (IsKeyDown(KEY_S))
         {
@@ -315,41 +344,42 @@ void Game::HandleInput()
 
 void Game::UpdateGame(const float deltaTime)
 {
-    if (!dino || currentState == GameState::GAME_OVER) return;
+    if (currentState == GameState::GAME_OVER || currentState == GameState::PAUSED)
+    {
+        return;
+    }
+
+    if (!dino) return;
 
     timePlayed += deltaTime;
     score = static_cast<int>(timePlayed * 10);
 
     worldBaseScrollSpeed += worldSpeedIncreaseRate * deltaTime;
-    currentWorldScrollSpeed = worldBaseScrollSpeed;
+    currentWorldScrollSpeed = worldBaseScrollSpeed; // 这个是正值
 
-    dino->Update(deltaTime);
+    // --- 调用 dino->Update 时传递世界滚动速度 ---
+    dino->Update(deltaTime, currentWorldScrollSpeed); // Dinosaur内部会处理方向
 
+    // 恐龙边界检查 (与之前相同)
     if (dino->position.x < 0) dino->position.x = 0;
     if (dino->position.x + dino->GetWidth() > virtualScreenWidth)
     {
         dino->position.x = virtualScreenWidth - dino->GetWidth();
     }
 
-    UpdateRoadSegments(deltaTime);
+    UpdateRoadSegments(deltaTime); // 路面滚动
 
+    // 障碍物和鸟的更新 (与之前相同)
     for (auto it = obstacles.begin(); it != obstacles.end();)
     {
-        it->speed = currentWorldScrollSpeed;
+        it->speed = currentWorldScrollSpeed; // 障碍物使用正的速度，在内部处理为向左移动
         it->Update(deltaTime);
         if (it->IsOffScreen(static_cast<float>(virtualScreenWidth))) it = obstacles.erase(it);
         else ++it;
     }
     for (auto it = birds.begin(); it != birds.end();)
     {
-        // 鸟的速度 = 地图滚动速度 * (1.0 到 1.5 之间的一个随机因子)
-        // 这样鸟的速度总是 >= 地图滚动速度
-        const float birdSpeedFactor = 0.8f + (static_cast<float>(rand() % 71) / 100.0f);
-        // 产生 0.0 到 0.50 的随机数，加上1.0后为 1.0 到 1.5
-        // 或者使用更标准的随机浮点数生成：
-        // float randomExtra = static_cast<float>(rand()) / static_cast<float>(RAND_MAX); // 0.0 to 1.0
-        // birdSpeedFactor = 1.0f + randomExtra * 0.5f; // 1.0 to 1.5
-
+        const float birdSpeedFactor = 0.3f + (static_cast<float>(rand() % 221) / 100.0f);
         it->speed = currentWorldScrollSpeed * birdSpeedFactor;
         it->Update(deltaTime);
         if (it->IsOffScreen()) it = birds.erase(it);
@@ -361,13 +391,6 @@ void Game::UpdateGame(const float deltaTime)
     {
         SpawnObstacleOrBird();
         obstacleSpawnTimer = 0.0f;
-        if (maxObstacleSpawnInterval <= minObstacleSpawnInterval)
-        {
-            // 如果间隔设置不合理，给一个默认范围，并打印警告
-            maxObstacleSpawnInterval = minObstacleSpawnInterval + 0.5f;
-            TraceLog(LOG_WARNING, "maxObstacleSpawnInterval was <= minObstacleSpawnInterval, adjusted range.");
-        }
-        // 在基础最小和最大间隔之间随机选择下一个间隔
         currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (static_cast<float>(
             RAND_MAX / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
     }
@@ -379,7 +402,7 @@ void Game::SpawnObstacleOrBird()
     if (birdFrames.empty() && smallCactusTextures.empty() && bigCactusTextures.empty()) return;
     float spawnX = static_cast<float>(virtualScreenWidth) + 250.0f + (rand() % 350);
 
-    if (const int entityTypeRoll = rand() % 100; entityTypeRoll < 70 || birdFrames.empty()) // 70% 仙人掌，或者没有鸟帧
+    if (const int entityTypeRoll = rand() % 100; entityTypeRoll < 60 || birdFrames.empty()) // 60% 仙人掌，或者没有鸟帧
     {
         Texture2D chosenCactusTex;
         if (const bool preferSmall = (rand() % 3 != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
@@ -399,17 +422,10 @@ void Game::SpawnObstacleOrBird()
             const float birdHeight = birdFrames[0].height;
             float spawnY;
             if (const int heightTier = rand() % 2; heightTier == 0)
-                spawnY = dinoStandingTop - 40 - birdHeight - (rand()
-                    % 70);
-            else spawnY = groundY - dino->sneakHeight - birdHeight - 10 - (rand() % 20);
+                spawnY = dinoStandingTop - 60 - birdHeight - (rand()
+                    % 80);
+            else spawnY = groundY - dino->sneakHeight - birdHeight - 20 - (rand() % 30);
             spawnY = std::max(virtualScreenHeight * 0.15f, std::min(spawnY, groundY - birdHeight - 25.0f));
-
-            // --- 当生成鸟时，它的速度会在 UpdateGame 中被正确设置 ---
-            // 这里构造鸟时传入的速度参数会被 UpdateGame 中的逻辑覆盖，但为了保持构造函数签名，我们仍然传入一个值
-            // 例如，可以传入 currentWorldScrollSpeed，或者一个临时值0，因为它会被立刻更新。
-            // 传入 currentWorldScrollSpeed * (1.0f + (static_cast<float>(rand() % 51) / 100.0f)) 也可以，
-            // 但更清晰的做法是在 UpdateGame 中统一处理。
-            // 这里我们传入 currentWorldScrollSpeed 作为初始值，它会被 UpdateGame 循环覆盖。
             birds.emplace_back(spawnX, spawnY, currentWorldScrollSpeed, birdFrames);
         }
     }
@@ -436,7 +452,7 @@ void Game::CheckCollisions()
     }
 }
 
-void Game::DrawGame()
+void Game::DrawGame() const
 {
     BeginTextureMode(targetRenderTexture);
     ClearBackground(RAYWHITE);
@@ -454,6 +470,25 @@ void Game::DrawGame()
         DrawText("Press R or Click to Restart",
                  virtualScreenWidth / 2 - MeasureText("Press R or Click to Restart", 25) / 2,
                  virtualScreenHeight * 0.6f, 25, DARKGRAY);
+    }
+    else if (currentState == GameState::PAUSED)
+    {
+        // 可选：绘制一个半透明的覆盖层使背景变暗，以突出暂停信息
+        DrawRectangle(0, 0, virtualScreenWidth, virtualScreenHeight, Fade(BLACK, 0.4f));
+
+        const auto pauseText = "PAUSED";
+        constexpr int pauseTextFontSize = 30; // 字体大小
+        constexpr auto pauseTextColor = RAYWHITE; // 文字颜色
+        const int textWidth = MeasureText(pauseText, pauseTextFontSize);
+
+        // 定位在右下角
+        const float posX = virtualScreenWidth - textWidth - 20; // 20是屏幕右边距
+        const float posY = virtualScreenHeight - static_cast<float>(pauseTextFontSize) - 20; // 20是屏幕下边距
+
+        // 绘制文字
+        DrawText(pauseText, static_cast<int>(posX),
+                 static_cast<int>(posY + (static_cast<float>(pauseTextFontSize) - pauseTextFontSize) / 2.0f),
+                 pauseTextFontSize, pauseTextColor); // 垂直居中文字
     }
     EndTextureMode();
     BeginDrawing();
@@ -554,8 +589,8 @@ void Game::UpdateRoadSegments(float deltaTime)
     }
     while (rightmostX < virtualScreenWidth * 1.5f)
     {
-        int randIdx = rand() % roadSegmentTextures.size();
-        Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
+        const int randIdx = rand() % roadSegmentTextures.size();
+        const Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
         activeRoadSegments.push_back({chosenRoadTex, rightmostX});
         rightmostX += chosenRoadTex.width;
     }
@@ -578,7 +613,6 @@ void Game::Run()
 {
     while (!WindowShouldClose())
     {
-        // --- BGM Update & Loop ---
         if (bgmMusic.frameCount > 0 && IsAudioDeviceReady())
         {
             if (!IsMusicStreamPlaying(bgmMusic) && currentState == GameState::PLAYING)
@@ -590,13 +624,12 @@ void Game::Run()
                 UpdateMusicStream(bgmMusic);
                 if (GetMusicTimePlayed(bgmMusic) >= GetMusicTimeLength(bgmMusic) - 0.1f)
                 {
-                    // 手动循环
                     SeekMusicStream(bgmMusic, 0.0f);
                 }
             }
         }
 
-        float deltaTime = GetFrameTime();
+        const float deltaTime = GetFrameTime();
         HandleInput();
         if (IsWindowResized() && !IsWindowMinimized())
         {
