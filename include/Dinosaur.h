@@ -61,6 +61,7 @@ public:
     bool IsSneaking() const { return isSneaking; }
     bool IsJumping() const { return isJumping; }
     bool IsFacingRight() const { return facingRight; } // 获取朝向
+
     void UpdateCollisionRect();
 
 private:
@@ -116,7 +117,7 @@ private:
 
     // 新增冲刺和粒子相关的私有方法
     void EmitDashParticleTrail(float currentWorldScrollSpeed);
-    void UpdateParticles(float deltaTime, float worldScrollSpeed);
+    void UpdateParticles(float deltaTime);
     void DrawParticles() const;
 };
 

@@ -1,4 +1,4 @@
-#include "../include/Game.h" // 确保此路径正确
+#include "../include/Game.h"
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
@@ -10,10 +10,9 @@ Game::Game(const int width, const int height, const char* title)
       targetRenderTexture{},
       sourceRec{0.0f, 0.0f, static_cast<float>(virtualScreenWidth), static_cast<float>(virtualScreenHeight)},
       destRec{0.0f, 0.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight)},
-      origin{0.0f, 0.0f}, isFakeFullscreen(false),
+      origin{0.0f, 0.0f}, isFullscreen(false),
       windowedPosX(0), windowedPosY(0),
-      windowedWidth(width),
-      windowedHeight(height),
+      windowedWidth(width), windowedHeight(height),
       dino(nullptr),
       currentState(GameState::PLAYING),
       groundY(0),
@@ -25,13 +24,13 @@ Game::Game(const int width, const int height, const char* title)
       obstacleSpawnTimer(0.0f),
       minObstacleSpawnInterval(0.6f), maxObstacleSpawnInterval(2.4f),
       currentObstacleSpawnInterval(0.0f),
-      dinoDeadTexture{0},
-      cloudTexture{0},
-      jumpSound{nullptr}, // 初始化新增成员
+      dinoDeadTexture{},
+      cloudTexture{},
+      jumpSound{nullptr},
       dashSound{nullptr},
-      deadSound{nullptr}, // 初始化新增成员
-      bgmMusic{nullptr}, // 初始化新增成员
-      cloudSpawnTimerValue(0.0f) // 初始化云计时器
+      deadSound{nullptr},
+      bgmMusic{nullptr},
+      cloudSpawnTimerValue(0.0f)
 {
     srand(static_cast<unsigned int>(time(nullptr)));
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -211,13 +210,7 @@ void Game::HandleInput()
     if (IsKeyPressed(KEY_F11))
     {
         const int currentMonitor = GetCurrentMonitor();
-        if (IsWindowFullscreen())
-        {
-            ToggleFullscreen();
-            isFakeFullscreen = false;
-        }
-
-        if (!isFakeFullscreen)
+        if (!isFullscreen)
         {
             if (!IsWindowMaximized())
             {
@@ -237,7 +230,7 @@ void Game::HandleInput()
             SetWindowState(FLAG_WINDOW_UNDECORATED);
             SetWindowSize(GetMonitorWidth(currentMonitor), GetMonitorHeight(currentMonitor));
             SetWindowPosition(0, 0);
-            isFakeFullscreen = true;
+            isFullscreen = true;
         }
         else
         {
@@ -245,7 +238,7 @@ void Game::HandleInput()
             SetWindowSize(windowedWidth, windowedHeight);
             SetWindowPosition(windowedPosX, windowedPosY);
             SetWindowState(FLAG_WINDOW_RESIZABLE);
-            isFakeFullscreen = false;
+            isFullscreen = false;
         }
         HandleWindowResize();
     }
@@ -300,23 +293,16 @@ void Game::UpdateGame(const float deltaTime)
 {
     if (currentState == GameState::GAME_OVER || currentState == GameState::PAUSED)
     {
-        if (currentState == GameState::GAME_OVER && dino && !dino->IsOnGround())
-        {
-            dino->Update(deltaTime, 0.0f);
-        }
         return;
     }
-
-    if (!dino) return;
 
     timePlayed += deltaTime;
     score = static_cast<int>(timePlayed * 10);
 
     worldBaseScrollSpeed += worldSpeedIncreaseRate * deltaTime;
-    currentWorldScrollSpeed = worldBaseScrollSpeed; // 这个是正值
+    currentWorldScrollSpeed = worldBaseScrollSpeed;
 
-    // --- 调用 dino->Update 时传递世界滚动速度 ---
-    dino->Update(deltaTime, currentWorldScrollSpeed); // Dinosaur内部会处理方向
+    dino->Update(deltaTime, currentWorldScrollSpeed);
 
     // 恐龙边界检查 (与之前相同)
     if (dino->position.x < 0) dino->position.x = 0;
@@ -350,8 +336,8 @@ void Game::UpdateGame(const float deltaTime)
     {
         SpawnObstacleOrBird();
         obstacleSpawnTimer = 0.0f;
-        currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (static_cast<float>(
-            RAND_MAX / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
+        currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (RAND_MAX / (
+            maxObstacleSpawnInterval - minObstacleSpawnInterval));
     }
 
     cloudSpawnTimerValue += deltaTime;
@@ -464,8 +450,8 @@ void Game::DrawGame() const
         DrawRectangle(0, 0, virtualScreenWidth, virtualScreenHeight, Fade(BLACK, 0.4f));
 
         const auto pauseText = "PAUSED";
-        constexpr int pauseTextFontSize = 30; // 字体大小
-        constexpr auto pauseTextColor = RAYWHITE; // 文字颜色
+        constexpr int pauseTextFontSize = 30;
+        constexpr auto pauseTextColor = RAYWHITE;
         const int textWidth = MeasureText(pauseText, pauseTextFontSize);
 
         // 定位在右下角
@@ -487,26 +473,22 @@ void Game::DrawGame() const
 void Game::SpawnCloud()
 {
     if (cloudTexture.id <= 0) return;
-
     Cloud newCloud;
     newCloud.texture = cloudTexture;
     newCloud.position.x = static_cast<float>(virtualScreenWidth) + GetRandomValue(50, cloudTexture.width * 2);
-    // 调整云的高度范围，确保它们在天空
     newCloud.position.y = static_cast<float>(GetRandomValue(virtualScreenHeight / 8, virtualScreenHeight / 2));
-    // 云的速度也随机一点
-    newCloud.speed = static_cast<float>(GetRandomValue(15, 45)) + currentWorldScrollSpeed * 0.05f; // 云也受一点世界速度影响，但很小
-
+    newCloud.speed = static_cast<float>(GetRandomValue(15, 45)) + currentWorldScrollSpeed * 0.05f;
     activeClouds.push_back(newCloud);
 }
 
 void Game::UpdateClouds(const float deltaTime)
 {
-    for (auto it = activeClouds.begin(); it != activeClouds.end(); /* no increment */)
+    for (auto it = activeClouds.begin(); it != activeClouds.end();)
     {
         it->position.x -= it->speed * deltaTime;
         if (it->position.x + it->texture.width < 0)
         {
-            it = activeClouds.erase(it); // 对于 std::deque, erase 返回下一个有效迭代器
+            it = activeClouds.erase(it);
         }
         else
         {
@@ -536,11 +518,11 @@ void Game::ResetGame()
 
 void Game::HandleWindowResize()
 {
-    if (isFakeFullscreen &&
+    if (isFullscreen &&
         (GetScreenWidth() != GetMonitorWidth(GetCurrentMonitor()) ||
             GetScreenHeight() != GetMonitorHeight(GetCurrentMonitor())))
     {
-        isFakeFullscreen = false;
+        isFullscreen = false;
     }
     screenWidth = GetScreenWidth();
     screenHeight = GetScreenHeight();
@@ -552,10 +534,10 @@ void Game::HandleWindowResize()
         dino->position.y = groundY - dino->GetHeight();
         dino->UpdateCollisionRect();
     }
-    InitRoadSegments(); // 窗口大小改变时重新初始化路面可能更简单
+    InitRoadSegments();
     TraceLog(LOG_INFO, "Window resized/state changed: Phys: %dx%d, Virt: %dx%d. Render scale: %.2f. FakeFullscreen: %s",
              screenWidth, screenHeight, virtualScreenWidth, virtualScreenHeight, destRec.width / virtualScreenWidth,
-             isFakeFullscreen ? "ON" : "OFF");
+             isFullscreen ? "ON" : "OFF");
 }
 
 void Game::UpdateRenderTextureScaling()
@@ -590,9 +572,9 @@ void Game::InitRoadSegments()
 void Game::UpdateRoadSegments(float deltaTime)
 {
     if (roadSegmentTextures.empty()) return;
-    for (auto& segment : activeRoadSegments)
+    for (auto& [texture, xPosition] : activeRoadSegments)
     {
-        segment.xPosition -= currentWorldScrollSpeed * deltaTime;
+        xPosition -= currentWorldScrollSpeed * deltaTime;
     }
     while (!activeRoadSegments.empty() && (activeRoadSegments.front().xPosition + activeRoadSegments.front().texture.
         width) < 0)

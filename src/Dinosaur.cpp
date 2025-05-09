@@ -4,7 +4,7 @@
 #include "raylib.h"
 #include "raymath.h"
 
-const float GROUND_VISUAL_OFFSET = 5.0f;
+constexpr float GROUND_VISUAL_OFFSET = 5.0f;
 
 Dinosaur::Dinosaur(const float startX, const float initialGroundY,
                    const std::vector<Texture2D>& runTex,
@@ -12,23 +12,23 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
                    const Texture2D& deadTex,
                    const Sound& jumpSound,
                    const Sound& dashSound)
-    : position({0, 0}), velocity({0, 0}), gravity(1800.0f), jumpSpeed(-600.0f),
-      moveSpeed(280.0f), jumpSoundHandle(jumpSound), dashSoundHandle(dashSound),
+    : position({0, 0}), velocity({0, 0}), groundY(initialGroundY), runHeight(0.0f),
+      sneakHeight(0.0f), jumpSoundHandle(jumpSound), dashSoundHandle(dashSound),
       isJumping(false),
       isSneaking(false), facingRight(true),
-      collisionRect({0, 0, 0, 0}), runFrames(runTex), sneakFrames(sneakTex),
-      deadTexture(deadTex), isDead(false),
-      currentAnimFrameIndex(0),
-      frameTimeCounter(0.0f), animationSpeed(0.08f),
-      groundY(initialGroundY), runHeight(0.0f), sneakHeight(0.0f),
-      coyoteTimeCounter(0.0f), jumpBufferCounter(0.0f),
-      jumpQueued(false),
+      runFrames(runTex), sneakFrames(sneakTex), deadTexture(deadTex),
+      isDead(false), currentAnimFrameIndex(0),
+      frameTimeCounter(0.0f),
+      animationSpeed(0.08f), collisionRect({0, 0, 0, 0}),
+      gravity(1800.0f), jumpSpeed(-600.0f), coyoteTimeCounter(0.0f),
+      jumpBufferCounter(0.0f), jumpQueued(false),
       sneakGravityMultiplier(2.5f),
+      moveSpeed(280.0f),
       isDashing(false),
       dashSpeedMagnitude(800.0f),
       dashDuration(0.18f),
       dashTimer(0.0f),
-      dashCooldown(0.5f),
+      dashCooldown(0.0f),
       dashCooldownTimer(0.0f),
       dashDirection({0.0f, 0.0f}),
       particleBaseGravity(1200.0f)
@@ -45,16 +45,14 @@ void Dinosaur::MarkAsDead()
 {
     isDead = true;
     isDashing = false;
-    velocity.x = 0; // 死亡时水平速度归零（如果希望它停在原地）
-    // 如果希望死亡时有个小的弹跳效果，可以在这里给 velocity.y 一个小的负值
-    // velocity.y = -200.0f;
+    velocity.x = 0;
 }
 
 void Dinosaur::RequestDash()
 {
     if (isDashing || dashCooldownTimer > 0.0f)
     {
-        return; // 正在冲刺或冷却中
+        return;
     }
 
     isDashing = true;
@@ -141,9 +139,7 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
     // 垂直移动始终应用
     position.y += velocity.y * deltaTime;
 
-    // 地面检测和处理
-    bool onGroundAfterUpdate = IsOnGround();
-    if (onGroundAfterUpdate)
+    if (IsOnGround())
     {
         if (velocity.y >= 0)
         {
@@ -205,20 +201,19 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
     }
 
     UpdateCollisionRect();
-    UpdateParticles(deltaTime, worldScrollSpeed);
+    UpdateParticles(deltaTime);
 }
 
-void Dinosaur::EmitDashParticleTrail(float currentWorldScrollSpeed)
+void Dinosaur::EmitDashParticleTrail(const float currentWorldScrollSpeed)
 {
-    int particlesToEmit = GetRandomValue(2, 3);
+    const int particlesToEmit = GetRandomValue(2, 3);
     for (int i = 0; i < particlesToEmit; ++i)
     {
         DashParticle p;
-        float dinoWidth = GetWidth();
-        float dinoHeight = GetHeight();
+        const float dinoWidth = GetWidth();
+        const float dinoHeight = GetHeight();
 
-        // ... (粒子初始位置与之前相同)
-        float randomXOffsetFactor = (GetRandomValue(0, 100) / 100.0f);
+        const float randomXOffsetFactor = (GetRandomValue(0, 100) / 100.0f);
         if (dashDirection.x > 0)
         {
             p.position.x = position.x + dinoWidth * (randomXOffsetFactor * 0.8f);
@@ -266,11 +261,11 @@ void Dinosaur::EmitDashParticleTrail(float currentWorldScrollSpeed)
     }
 }
 
-void Dinosaur::UpdateParticles(float deltaTime, float worldScrollSpeed)
+void Dinosaur::UpdateParticles(const float deltaTime)
 {
-    float particleGroundY = groundY + GROUND_VISUAL_OFFSET;
+    const float particleGroundY = groundY + GROUND_VISUAL_OFFSET;
 
-    for (auto it = particles.begin(); it != particles.end(); /* no increment */)
+    for (auto it = particles.begin(); it != particles.end();)
     {
         // 检查是否移出屏幕左侧
         if (it->position.x + it->size < -50)
@@ -415,8 +410,7 @@ void Dinosaur::StartSneaking()
         const bool wasOnGround = IsOnGround();
         const float heightBeforeSneak = GetHeight();
         isSneaking = true;
-        const float heightAfterSneak = GetHeight();
-        if (wasOnGround && heightBeforeSneak != heightAfterSneak)
+        if (const float heightAfterSneak = GetHeight(); wasOnGround && heightBeforeSneak != heightAfterSneak)
         {
             position.y += (heightBeforeSneak - heightAfterSneak);
         }
@@ -432,8 +426,7 @@ void Dinosaur::StopSneaking()
         const bool wasOnGround = IsOnGround();
         const float heightBeforeStand = GetHeight();
         isSneaking = false;
-        const float heightAfterStand = GetHeight();
-        if (wasOnGround && heightBeforeStand != heightAfterStand)
+        if (const float heightAfterStand = GetHeight(); wasOnGround && heightBeforeStand != heightAfterStand)
         {
             position.y -= (heightAfterStand - heightBeforeStand);
             if (position.y + heightAfterStand > groundY + 0.1f)
@@ -506,7 +499,7 @@ Texture2D Dinosaur::GetCurrentTextureToDraw() const
         return runFrames[0];
     }
     TraceLog(LOG_ERROR, "GetCurrentTextureToDraw: No valid texture found!");
-    return Texture2D{0}; // 返回一个无效纹理
+    return Texture2D{}; // 返回一个无效纹理
 }
 
 float Dinosaur::GetHeight() const

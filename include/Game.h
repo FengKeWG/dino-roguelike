@@ -45,7 +45,7 @@ private:
     Rectangle destRec;
     Vector2 origin;
 
-    bool isFakeFullscreen;
+    bool isFullscreen;
     int windowedPosX, windowedPosY;
     int windowedWidth, windowedHeight;
 
