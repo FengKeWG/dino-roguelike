@@ -36,8 +36,9 @@ public:
     Dinosaur(float startX, float initialGroundY,
              const std::vector<Texture2D>& runTex,
              const std::vector<Texture2D>& sneakTex,
+             const Texture2D& deadTex,
              const Sound& jumpSound,
-             const Sound& rushSound);
+             const Sound& dashSound);
     ~Dinosaur();
 
     //核心方法
@@ -50,6 +51,7 @@ public:
     void StopSneaking();
     void Move(float direction, float deltaTime); // 水平移动输入
     void RequestDash(); // 新增：冲刺请求
+    void MarkAsDead();
 
     // Getters
     Rectangle GetCollisionRect() const;
@@ -72,6 +74,8 @@ private:
     // 动画
     std::vector<Texture2D> runFrames;
     std::vector<Texture2D> sneakFrames;
+    Texture2D deadTexture; // <--- 新增：存储死亡纹理
+    bool isDead;
     int currentAnimFrameIndex;
     float frameTimeCounter;
     float animationSpeed;

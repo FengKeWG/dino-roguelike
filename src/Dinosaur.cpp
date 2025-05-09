@@ -9,6 +9,7 @@ const float GROUND_VISUAL_OFFSET = 5.0f;
 Dinosaur::Dinosaur(const float startX, const float initialGroundY,
                    const std::vector<Texture2D>& runTex,
                    const std::vector<Texture2D>& sneakTex,
+                   const Texture2D& deadTex,
                    const Sound& jumpSound,
                    const Sound& dashSound)
     : position({0, 0}), velocity({0, 0}), gravity(1800.0f), jumpSpeed(-600.0f),
@@ -16,13 +17,13 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
       isJumping(false),
       isSneaking(false), facingRight(true),
       collisionRect({0, 0, 0, 0}), runFrames(runTex), sneakFrames(sneakTex),
+      deadTexture(deadTex), isDead(false),
       currentAnimFrameIndex(0),
       frameTimeCounter(0.0f), animationSpeed(0.08f),
       groundY(initialGroundY), runHeight(0.0f), sneakHeight(0.0f),
       coyoteTimeCounter(0.0f), jumpBufferCounter(0.0f),
       jumpQueued(false),
       sneakGravityMultiplier(2.5f),
-      // 初始化冲刺属性
       isDashing(false),
       dashSpeedMagnitude(800.0f),
       dashDuration(0.18f),
@@ -32,24 +33,22 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
       dashDirection({0.0f, 0.0f}),
       particleBaseGravity(1200.0f)
 {
-    if (!runFrames.empty() && runFrames[0].id > 0) { runHeight = static_cast<float>(runFrames[0].height); }
-    else
-    {
-        TraceLog(LOG_ERROR, "CRITICAL: Dinosaur needs run frames for height!");
-        runHeight = 50.0f;
-    }
-    if (!sneakFrames.empty() && sneakFrames[0].id > 0) { sneakHeight = static_cast<float>(sneakFrames[0].height); }
-    else
-    {
-        sneakHeight = runHeight * 0.6f;
-        TraceLog(LOG_WARNING, "Sneak frames missing or invalid, estimating height.");
-    }
-
+    runHeight = static_cast<float>(runFrames[0].height);
+    sneakHeight = static_cast<float>(sneakFrames[0].height);
     position = {startX, initialGroundY - runHeight};
     UpdateCollisionRect();
 }
 
-Dinosaur::~Dinosaur() = default; // 没有需要特殊清理的资源（粒子是值类型）
+Dinosaur::~Dinosaur() = default;
+
+void Dinosaur::MarkAsDead()
+{
+    isDead = true;
+    isDashing = false;
+    velocity.x = 0; // 死亡时水平速度归零（如果希望它停在原地）
+    // 如果希望死亡时有个小的弹跳效果，可以在这里给 velocity.y 一个小的负值
+    // velocity.y = -200.0f;
+}
 
 void Dinosaur::RequestDash()
 {
@@ -71,8 +70,28 @@ void Dinosaur::RequestDash()
     }
 }
 
-void Dinosaur::Update(float deltaTime, float worldScrollSpeed)
+void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
 {
+    if (isDead)
+    {
+        // 死亡状态下的更新
+        if (!IsOnGround())
+        {
+            velocity.y += gravity * deltaTime;
+        }
+        position.y += velocity.y * deltaTime;
+
+        // 确保死亡的恐龙停在地面上
+        if (IsOnGround())
+        {
+            position.y = (groundY - GetHeight()) + GROUND_VISUAL_OFFSET;
+            velocity.y = 0;
+        }
+        UpdateCollisionRect(); // 仍然需要更新碰撞盒，即使只是为了绘制
+        // 不再处理动画、输入、冲刺冷却等
+        return;
+    }
+
     if (dashCooldownTimer > 0.0f)
     {
         dashCooldownTimer -= deltaTime;
@@ -100,12 +119,10 @@ void Dinosaur::Update(float deltaTime, float worldScrollSpeed)
         if (jumpBufferCounter > 0.0f) jumpBufferCounter -= deltaTime;
         if (jumpBufferCounter <= 0.0f) jumpQueued = false;
 
-        bool onGroundBeforeVerticalMove = IsOnGround();
-
-        if (jumpQueued && (onGroundBeforeVerticalMove || coyoteTimeCounter > 0.0f))
+        if (const bool onGroundBeforeVerticalMove = IsOnGround(); jumpQueued && (onGroundBeforeVerticalMove ||
+            coyoteTimeCounter > 0.0f))
         {
             ExecuteJump();
-            // onGroundBeforeVerticalMove = false; // ExecuteJump 会设置 isJumping
         }
 
         float currentEffectiveGravity = gravity;
@@ -123,7 +140,6 @@ void Dinosaur::Update(float deltaTime, float worldScrollSpeed)
     }
     // 垂直移动始终应用
     position.y += velocity.y * deltaTime;
-
 
     // 地面检测和处理
     bool onGroundAfterUpdate = IsOnGround();
@@ -211,42 +227,37 @@ void Dinosaur::EmitDashParticleTrail(float currentWorldScrollSpeed)
         {
             p.position.x = position.x + dinoWidth * (0.2f + randomXOffsetFactor * 0.8f);
         }
-        float randomYOffsetFactor = (GetRandomValue(0, 100) / 100.0f);
+        const float randomYOffsetFactor = (GetRandomValue(0, 100) / 100.0f);
         p.position.y = position.y + dinoHeight * randomYOffsetFactor;
 
-
-        // ... (粒子初始速度与之前相同)
-        float baseSpeedX = (float)GetRandomValue(50, 120);
-        float baseSpeedY = (float)GetRandomValue(80, 180);
+        const auto baseSpeedX = static_cast<float>(GetRandomValue(50, 120));
+        const auto baseSpeedY = static_cast<float>(GetRandomValue(80, 180));
         float angleVariation = (GetRandomValue(-20, 20) * DEG2RAD);
         p.velocity.x = -dashDirection.x * baseSpeedX * cos(angleVariation) - dashDirection.y * baseSpeedY * sin(
             angleVariation);
         p.velocity.y = -dashDirection.x * baseSpeedX * sin(angleVariation) + dashDirection.y * baseSpeedY *
             cos(angleVariation) - baseSpeedY;
 
-
-        // --- 关键：调整生命周期，确保足够长以便大部分能落地 ---
-        p.initialLife = (float)GetRandomValue(80, 150) / 100.0f; // 0.8 到 1.5 秒
-        // 这个值需要足够大，让粒子有时间在各种初始速度和高度下到达地面
+        p.initialLife = static_cast<float>(GetRandomValue(80, 150)) / 100.0f;
         p.lifeRemaining = p.initialLife;
-        p.size = (float)GetRandomValue(2, 4);
+        p.size = static_cast<float>(GetRandomValue(2, 4));
 
-        const unsigned char maxBaseColor = 83;
+        constexpr unsigned char maxBaseColor = 83;
         unsigned char baseShade = GetRandomValue(maxBaseColor - 25, maxBaseColor);
         if (baseShade < 25) baseShade = 25;
         p.color = {
-            (unsigned char)(baseShade + GetRandomValue(-8, 4)),
-            (unsigned char)(baseShade + GetRandomValue(-8, 4)),
-            (unsigned char)(baseShade + GetRandomValue(-8, 4)),
-            255 // --- 关键：初始Alpha设为完全不透明 ---
+            static_cast<unsigned char>(baseShade + GetRandomValue(-8, 4)),
+            static_cast<unsigned char>(baseShade + GetRandomValue(-8, 4)),
+            static_cast<unsigned char>(baseShade + GetRandomValue(-8, 4)),
+            255
         };
         p.color.r = Clamp(p.color.r, 0, 255);
         p.color.g = Clamp(p.color.g, 0, 255);
         p.color.b = Clamp(p.color.b, 0, 255);
 
-        p.rotation = (float)GetRandomValue(0, 359);
-        p.angularVelocity = (float)GetRandomValue(-250, 250);
-        p.gravityEffect = (float)GetRandomValue(90, 110) / 100.0f;
+        p.rotation = static_cast<float>(GetRandomValue(0, 359));
+        p.angularVelocity = static_cast<float>(GetRandomValue(-250, 250));
+        p.gravityEffect = static_cast<float>(GetRandomValue(90, 110)) / 100.0f;
 
         p.isLanded = false;
         p.landedScrollSpeedX = -currentWorldScrollSpeed;
@@ -338,8 +349,7 @@ void Dinosaur::DrawParticles() const
 
 void Dinosaur::Draw() const
 {
-    DrawParticles(); // 绘制粒子（在恐龙之前，所以粒子在恐龙下方/之后）
-
+    DrawParticles();
     if (const Texture2D texToDraw = GetCurrentTextureToDraw(); texToDraw.id > 0)
     {
         Rectangle sourceRec = {0.0f, 0.0f, static_cast<float>(texToDraw.width), static_cast<float>(texToDraw.height)};
@@ -354,8 +364,6 @@ void Dinosaur::Draw() const
     {
         DrawRectangleRec(GetCollisionRect(), LIME);
     }
-    // 调试用：
-    // DrawRectangleLinesEx(GetCollisionRect(), 1, BLUE);
 }
 
 void Dinosaur::Move(const float direction, const float deltaTime)
@@ -379,7 +387,7 @@ bool Dinosaur::IsOnGround() const
 
 void Dinosaur::RequestJump()
 {
-    if (isDashing) return; // 冲刺时不允许跳跃 (可选行为)
+    if (isDashing) return;
     jumpBufferCounter = jumpBufferDuration;
     jumpQueued = true;
 }
@@ -449,12 +457,16 @@ const std::vector<Texture2D>* Dinosaur::GetCurrentAnimationFramesPointer() const
 
 Texture2D Dinosaur::GetCurrentTextureToDraw() const
 {
-    const std::vector<Texture2D>* frames_ptr = GetCurrentAnimationFramesPointer();
+    if (isDead && deadTexture.id > 0)
+    {
+        return deadTexture;
+    }
 
-    if (frames_ptr && !frames_ptr->empty())
+    if (const std::vector<Texture2D>* frames_ptr = GetCurrentAnimationFramesPointer(); frames_ptr && !frames_ptr->
+        empty())
     {
         const std::vector<Texture2D>& frames = *frames_ptr;
-        int frameIdxToUse = currentAnimFrameIndex;
+        const int frameIdxToUse = currentAnimFrameIndex;
 
         // 跳跃或冲刺时，通常显示当前状态（跑/蹲）的第一帧
         if ((isJumping || isDashing) && !isSneaking)
@@ -499,6 +511,10 @@ Texture2D Dinosaur::GetCurrentTextureToDraw() const
 
 float Dinosaur::GetHeight() const
 {
+    if (isDead && deadTexture.id > 0)
+    {
+        return static_cast<float>(deadTexture.height);
+    }
     if (isSneaking && sneakHeight > 0)
     {
         return sneakHeight;
@@ -508,12 +524,13 @@ float Dinosaur::GetHeight() const
 
 float Dinosaur::GetWidth() const
 {
-    Texture2D tex = GetCurrentTextureToDraw();
-    if (tex.id > 0) return static_cast<float>(std::abs(tex.width));
-
-    // Fallback if GetCurrentTextureToDraw returns invalid texture
+    if (isDead && deadTexture.id > 0)
+    {
+        return static_cast<float>(deadTexture.width);
+    }
+    if (const Texture2D tex = GetCurrentTextureToDraw(); tex.id > 0) return static_cast<float>(std::abs(tex.width));
     if (!runFrames.empty() && runFrames[0].id > 0) return static_cast<float>(runFrames[0].width);
-    return 44.0f; // Default width
+    return 44.0f;
 }
 
 void Dinosaur::UpdateCollisionRect()
@@ -526,35 +543,33 @@ void Dinosaur::UpdateCollisionRect()
 
 Rectangle Dinosaur::GetCollisionRect() const
 {
-    Rectangle originalRect = collisionRect; // 使用成员变量，它在UpdateCollisionRect中更新
-    Rectangle adjustedRect = originalRect;
-
-    float widthReductionFactor = 0.25f;
-    float heightReductionFactorTop = 0.15f;
-    float heightReductionFactorBottom = 0.08f;
+    float widthReductionFactor = 0.40f;
+    float heightReductionFactorTop = 0.25f;
+    float heightReductionFactorBottom = 0.15f;
 
     if (isSneaking)
     {
-        widthReductionFactor = 0.30f;
-        heightReductionFactorTop = 0.20f;
-        heightReductionFactorBottom = 0.05f;
+        widthReductionFactor = 0.45f;
+        heightReductionFactorTop = 0.30f;
+        heightReductionFactorBottom = 0.10f;
     }
-    if (isDashing)
+    else if (isDashing)
     {
-        // 冲刺时碰撞盒可以更小，更贴近地面
-        widthReductionFactor = 0.35f;
-        heightReductionFactorTop = 0.25f; // 顶部压得更低
-        heightReductionFactorBottom = 0.05f;
+        widthReductionFactor = 0.50f;
+        heightReductionFactorTop = 0.35f;
+        heightReductionFactorBottom = 0.10f;
     }
 
-    const float horizontalPadding = originalRect.width * widthReductionFactor;
-    const float verticalPaddingTop = originalRect.height * heightReductionFactorTop;
-    const float verticalPaddingBottom = originalRect.height * heightReductionFactorBottom;
+    const float horizontalPadding = collisionRect.width * widthReductionFactor;
+    const float verticalPaddingTop = collisionRect.height * heightReductionFactorTop;
+    const float verticalPaddingBottom = collisionRect.height * heightReductionFactorBottom;
 
-    adjustedRect.x += horizontalPadding / 2.0f;
-    adjustedRect.width -= horizontalPadding;
-    adjustedRect.y += verticalPaddingTop;
-    adjustedRect.height -= (verticalPaddingTop + verticalPaddingBottom);
+    Rectangle adjustedRect = {
+        collisionRect.x + horizontalPadding / 2.0f,
+        collisionRect.y + verticalPaddingTop,
+        collisionRect.width - horizontalPadding,
+        collisionRect.height - (verticalPaddingTop + verticalPaddingBottom)
+    };
 
     if (adjustedRect.width < 1.0f) adjustedRect.width = 1.0f;
     if (adjustedRect.height < 1.0f) adjustedRect.height = 1.0f;

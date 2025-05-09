@@ -7,37 +7,45 @@
 
 Game::Game(const int width, const int height, const char* title)
     : screenWidth(width), screenHeight(height),
-      isFakeFullscreen(false),
+      targetRenderTexture{},
+      sourceRec{0.0f, 0.0f, static_cast<float>(virtualScreenWidth), static_cast<float>(virtualScreenHeight)},
+      destRec{0.0f, 0.0f, static_cast<float>(screenWidth), static_cast<float>(screenHeight)},
+      origin{0.0f, 0.0f}, isFakeFullscreen(false),
       windowedPosX(0), windowedPosY(0),
-      windowedWidth(width), windowedHeight(height),
-      dino(nullptr), currentState(GameState::PLAYING),
+      windowedWidth(width),
+      windowedHeight(height),
+      dino(nullptr),
+      currentState(GameState::PLAYING),
       groundY(0),
+      timePlayed(0.0f),
+      score(0),
       worldBaseScrollSpeed(400.0f),
       currentWorldScrollSpeed(worldBaseScrollSpeed),
       worldSpeedIncreaseRate(10.0f),
-      timePlayed(0.0f),
-      score(0),
       obstacleSpawnTimer(0.0f),
-      minObstacleSpawnInterval(0.6f),
-      maxObstacleSpawnInterval(2.4f),
+      minObstacleSpawnInterval(0.6f), maxObstacleSpawnInterval(2.4f),
       currentObstacleSpawnInterval(0.0f),
-      jumpSound{nullptr}, bgmMusic{nullptr}
+      dinoDeadTexture{0},
+      cloudTexture{0},
+      jumpSound{nullptr}, // 初始化新增成员
+      dashSound{nullptr},
+      deadSound{nullptr}, // 初始化新增成员
+      bgmMusic{nullptr}, // 初始化新增成员
+      cloudSpawnTimerValue(0.0f) // 初始化云计时器
 {
     srand(static_cast<unsigned int>(time(nullptr)));
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, title);
     SetExitKey(KEY_NULL);
-    InitAudioDevice(); // 初始化音频设备
-    Vector2 initialPos = GetWindowPosition();
-    windowedPosX = static_cast<int>(initialPos.x);
-    windowedPosY = static_cast<int>(initialPos.y);
-
+    InitAudioDevice();
+    nextCloudSpawnTime = static_cast<float>(GetRandomValue(10, 60)) / 10.0f;
+    const auto [x, y] = GetWindowPosition();
+    windowedPosX = static_cast<int>(x);
+    windowedPosY = static_cast<int>(y);
     SetWindowMinSize(virtualScreenWidth / 2, virtualScreenHeight / 2);
     SetTargetFPS(160);
-
     targetRenderTexture = LoadRenderTexture(virtualScreenWidth, virtualScreenHeight);
     SetTextureFilter(targetRenderTexture.texture, TEXTURE_FILTER_POINT);
-
     LoadResources();
     InitGame();
     HandleWindowResize();
@@ -48,13 +56,12 @@ Game::~Game()
     UnloadRenderTexture(targetRenderTexture);
     UnloadResources();
     delete dino;
-    CloseAudioDevice(); // 关闭音频设备
+    CloseAudioDevice();
     CloseWindow();
 }
 
 void Game::LoadResources()
 {
-    // 清空容器
     dinoRunFrames.clear();
     dinoSneakFrames.clear();
     smallCactusTextures.clear();
@@ -62,141 +69,82 @@ void Game::LoadResources()
     roadSegmentTextures.clear();
     birdFrames.clear();
 
-    // Dino Run (确保文件名是 _1, _2)
-    Texture2D tempTex = LoadTexture("assets/images/dino_run_1.png"); // 修正路径
-    if (tempTex.id > 0)
+    if (const Texture2D tempTex = LoadTexture("assets/images/dino_dead.png"); tempTex.id > 0)
     {
         SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        dinoRunFrames.push_back(tempTex);
+        dinoDeadTexture = tempTex;
     }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/dino_run_1.png"); }
-    tempTex = LoadTexture("assets/images/dino_run_2.png"); // 修正路径
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        dinoRunFrames.push_back(tempTex);
-    }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/dino_run_2.png"); }
+    else { TraceLog(LOG_WARNING, "Failed: assets/images/dino_dead.png"); }
 
-    // Dino Sneak (确保文件名是 _1, _2)
-    tempTex = LoadTexture("assets/images/dino_sneak_1.png"); // 修正路径
-    if (tempTex.id > 0)
+    if (const Texture2D tempTex = LoadTexture("assets/images/cloud.png"); tempTex.id > 0)
     {
         SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        dinoSneakFrames.push_back(tempTex);
+        cloudTexture = tempTex;
     }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/dino_sneak_1.png"); }
-    tempTex = LoadTexture("assets/images/dino_sneak_2.png"); // 修正路径
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        dinoSneakFrames.push_back(tempTex);
-    }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/dino_sneak_2.png"); }
+    else { TraceLog(LOG_WARNING, "Failed: assets/images/cloud.png"); }
 
-    // Cacti, Road, Birds (确保路径是 "assets/images/")
-    tempTex = LoadTexture("assets/images/small_cactus_1.png");
-    if (tempTex.id > 0)
+    auto LoadTextures = [](const std::vector<std::string>& paths, std::vector<Texture2D>& container)
     {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        smallCactusTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/small_cactus_1.png");
-    tempTex = LoadTexture("assets/images/small_cactus_2.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        smallCactusTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/small_cactus_2.png");
-    tempTex = LoadTexture("assets/images/small_cactus_3.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        smallCactusTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/small_cactus_3.png");
+        for (const auto& path : paths)
+        {
+            if (Texture2D tempTex = LoadTexture(path.c_str()); tempTex.id > 0)
+            {
+                SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
+                container.push_back(tempTex);
+            }
+            else
+            {
+                TraceLog(LOG_WARNING, ("Failed: " + path).c_str());
+            }
+        }
+    };
 
-    tempTex = LoadTexture("assets/images/big_cactus_1.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        bigCactusTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/big_cactus_1.png");
-    tempTex = LoadTexture("assets/images/big_cactus_2.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        bigCactusTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/big_cactus_2.png");
+    LoadTextures({
+                     "assets/images/dino_run_1.png",
+                     "assets/images/dino_run_2.png"
+                 }, dinoRunFrames);
+    LoadTextures({
+                     "assets/images/dino_sneak_1.png",
+                     "assets/images/dino_sneak_2.png"
+                 }, dinoSneakFrames);
+    LoadTextures({
+                     "assets/images/small_cactus_1.png",
+                     "assets/images/small_cactus_2.png",
+                     "assets/images/small_cactus_3.png"
+                 }, smallCactusTextures);
+    LoadTextures({
+                     "assets/images/big_cactus_1.png",
+                     "assets/images/big_cactus_2.png"
+                 }, bigCactusTextures);
+    LoadTextures({
+                     "assets/images/road_1.png",
+                     "assets/images/road_2.png",
+                     "assets/images/road_3.png",
+                     "assets/images/road_4.png"
+                 }, roadSegmentTextures);
+    LoadTextures({
+                     "assets/images/bird_1.png",
+                     "assets/images/bird_2.png"
+                 }, birdFrames);
 
-    tempTex = LoadTexture("assets/images/road_1.png");
-    if (tempTex.id > 0)
+    auto LoadSoundEffect = [](const char* path, Sound& sound)
     {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        roadSegmentTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/road_1.png");
-    tempTex = LoadTexture("assets/images/road_2.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        roadSegmentTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/road_2.png");
-    tempTex = LoadTexture("assets/images/road_3.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        roadSegmentTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/road_3.png");
-    tempTex = LoadTexture("assets/images/road_4.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        roadSegmentTextures.push_back(tempTex);
-    }
-    else TraceLog(LOG_WARNING, "Failed: assets/images/road_4.png");
+        sound = LoadSound(path);
+        if (sound.frameCount == 0)
+        {
+            TraceLog(LOG_WARNING, ("Failed to load sound: " + std::string(path)).c_str());
+        }
+    };
 
-    tempTex = LoadTexture("assets/images/bird_1.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        birdFrames.push_back(tempTex);
-    }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/bird_1.png"); }
-    tempTex = LoadTexture("assets/images/bird_2.png");
-    if (tempTex.id > 0)
-    {
-        SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
-        birdFrames.push_back(tempTex);
-    }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/bird_2.png"); }
+    LoadSoundEffect("assets/sounds/jump.wav", jumpSound);
+    LoadSoundEffect("assets/sounds/dash.wav", dashSound);
+    LoadSoundEffect("assets/sounds/dead.wav", deadSound);
 
-    // 加载音效和音乐
-    jumpSound = LoadSound("assets/sounds/jump.wav"); // 修正路径
-    if (jumpSound.frameCount == 0) TraceLog(LOG_WARNING, "Failed to load sound: assets/sounds/jump.wav");
+    bgmMusic = LoadMusicStream("assets/sounds/bgm.wav");
+    if (bgmMusic.frameCount == 0) { TraceLog(LOG_WARNING, "Failed to load music stream: assets/sounds/bgm.wav"); }
+    else { SetMusicVolume(bgmMusic, 0.3f); }
 
-    dashSound = LoadSound("assets/sounds/dash.wav"); // <--- 加载冲刺音效
-    if (dashSound.frameCount == 0) TraceLog(LOG_WARNING, "Failed to load sound: assets/sounds/dash.wav");
-
-    bgmMusic = LoadMusicStream("assets/sounds/bgm.wav"); // 修正路径
-    if (bgmMusic.frameCount == 0)
-    {
-        TraceLog(LOG_WARNING, "Failed to load music stream: assets/sounds/bgm.wav");
-    }
-    else
-    {
-        SetMusicVolume(bgmMusic, 0.3f); // 设置BGM音量
-    }
-
-    if (dinoRunFrames.empty())
-    {
-        TraceLog(LOG_ERROR, "CRITICAL: Dinosaur has no run frames for animation.");
-    }
+    if (dinoRunFrames.empty()) { TraceLog(LOG_ERROR, "CRITICAL: Dinosaur has no run frames for animation."); }
 }
 
 void Game::UnloadResources()
@@ -213,9 +161,12 @@ void Game::UnloadResources()
     roadSegmentTextures.clear();
     for (const auto& tex : birdFrames) if (tex.id > 0) UnloadTexture(tex);
     birdFrames.clear();
+    if (dinoDeadTexture.id > 0) UnloadTexture(dinoDeadTexture);
+    if (cloudTexture.id > 0) UnloadTexture(cloudTexture);
 
     if (jumpSound.frameCount > 0) UnloadSound(jumpSound);
     if (dashSound.frameCount > 0) UnloadSound(dashSound);
+    if (deadSound.frameCount > 0) UnloadSound(deadSound);
     if (bgmMusic.frameCount > 0)
     {
         StopMusicStream(bgmMusic);
@@ -227,13 +178,16 @@ void Game::InitGame()
 {
     groundY = static_cast<float>(virtualScreenHeight) * 0.85f;
     delete dino;
-    // *** 创建 Dinosaur 时传递 jumpSound ***
     dino = new Dinosaur(virtualScreenWidth / 4.0f, groundY,
                         dinoRunFrames, dinoSneakFrames,
-                        jumpSound, dashSound); // <--- 传递声音
+                        dinoDeadTexture,
+                        jumpSound, dashSound);
 
     obstacles.clear();
     birds.clear();
+    activeClouds.clear();
+    cloudSpawnTimerValue = 0.0f;
+    nextCloudSpawnTime = static_cast<float>(GetRandomValue(10, 60)) / 10.0f;
     score = 0;
     timePlayed = 0.0f;
     worldBaseScrollSpeed = 200.0f;
@@ -346,6 +300,10 @@ void Game::UpdateGame(const float deltaTime)
 {
     if (currentState == GameState::GAME_OVER || currentState == GameState::PAUSED)
     {
+        if (currentState == GameState::GAME_OVER && dino && !dino->IsOnGround())
+        {
+            dino->Update(deltaTime, 0.0f);
+        }
         return;
     }
 
@@ -368,6 +326,7 @@ void Game::UpdateGame(const float deltaTime)
     }
 
     UpdateRoadSegments(deltaTime); // 路面滚动
+    UpdateClouds(deltaTime);
 
     // 障碍物和鸟的更新 (与之前相同)
     for (auto it = obstacles.begin(); it != obstacles.end();)
@@ -394,6 +353,15 @@ void Game::UpdateGame(const float deltaTime)
         currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (static_cast<float>(
             RAND_MAX / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
     }
+
+    cloudSpawnTimerValue += deltaTime;
+    if (cloudSpawnTimerValue >= nextCloudSpawnTime)
+    {
+        SpawnCloud();
+        cloudSpawnTimerValue = 0.0f;
+        nextCloudSpawnTime = static_cast<float>(GetRandomValue(10, 60)) / 10.0f;
+    }
+
     CheckCollisions();
 }
 
@@ -433,21 +401,40 @@ void Game::SpawnObstacleOrBird()
 
 void Game::CheckCollisions()
 {
-    const Rectangle dinoRect = dino->GetCollisionRect(); // 使用调整后的碰撞盒
+    const Rectangle dinoRect = dino->GetCollisionRect();
+    bool collisionDetected = false;
+
     for (const auto& obs : obstacles)
     {
         if (CheckCollisionRecs(dinoRect, obs.GetCollisionRect()))
         {
-            currentState = GameState::GAME_OVER;
-            return;
+            collisionDetected = true;
+            break;
         }
     }
-    for (const auto& brd : birds)
+    if (!collisionDetected)
     {
-        if (CheckCollisionRecs(dinoRect, brd.GetCollisionRect()))
+        for (const auto& brd : birds)
         {
-            currentState = GameState::GAME_OVER;
-            return;
+            if (CheckCollisionRecs(dinoRect, brd.GetCollisionRect()))
+            {
+                collisionDetected = true;
+                break;
+            }
+        }
+    }
+
+    if (collisionDetected)
+    {
+        currentState = GameState::GAME_OVER;
+        dino->MarkAsDead(); // <--- 标记恐龙死亡
+        if (bgmMusic.frameCount > 0 && IsMusicStreamPlaying(bgmMusic))
+        {
+            StopMusicStream(bgmMusic); // <--- 停止BGM
+        }
+        if (deadSound.frameCount > 0 && IsAudioDeviceReady())
+        {
+            PlaySound(deadSound); // <--- 播放死亡音效
         }
     }
 }
@@ -456,7 +443,8 @@ void Game::DrawGame() const
 {
     BeginTextureMode(targetRenderTexture);
     ClearBackground(RAYWHITE);
-    DrawRoadSegments();
+    DrawClouds();
+    DrawRoads();
     if (dino) dino->Draw();
     for (auto& obs : obstacles) obs.Draw();
     for (auto& brd : birds) brd.Draw();
@@ -473,7 +461,6 @@ void Game::DrawGame() const
     }
     else if (currentState == GameState::PAUSED)
     {
-        // 可选：绘制一个半透明的覆盖层使背景变暗，以突出暂停信息
         DrawRectangle(0, 0, virtualScreenWidth, virtualScreenHeight, Fade(BLACK, 0.4f));
 
         const auto pauseText = "PAUSED";
@@ -495,6 +482,45 @@ void Game::DrawGame() const
     ClearBackground(BLACK);
     DrawTexturePro(targetRenderTexture.texture, sourceRec, destRec, origin, 0.0f, WHITE);
     EndDrawing();
+}
+
+void Game::SpawnCloud()
+{
+    if (cloudTexture.id <= 0) return;
+
+    Cloud newCloud;
+    newCloud.texture = cloudTexture;
+    newCloud.position.x = static_cast<float>(virtualScreenWidth) + GetRandomValue(50, cloudTexture.width * 2);
+    // 调整云的高度范围，确保它们在天空
+    newCloud.position.y = static_cast<float>(GetRandomValue(virtualScreenHeight / 8, virtualScreenHeight / 2));
+    // 云的速度也随机一点
+    newCloud.speed = static_cast<float>(GetRandomValue(15, 45)) + currentWorldScrollSpeed * 0.05f; // 云也受一点世界速度影响，但很小
+
+    activeClouds.push_back(newCloud);
+}
+
+void Game::UpdateClouds(const float deltaTime)
+{
+    for (auto it = activeClouds.begin(); it != activeClouds.end(); /* no increment */)
+    {
+        it->position.x -= it->speed * deltaTime;
+        if (it->position.x + it->texture.width < 0)
+        {
+            it = activeClouds.erase(it); // 对于 std::deque, erase 返回下一个有效迭代器
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void Game::DrawClouds() const
+{
+    for (const auto& cloud : activeClouds)
+    {
+        DrawTextureV(cloud.texture, cloud.position, WHITE);
+    }
 }
 
 void Game::ResetGame()
@@ -596,16 +622,16 @@ void Game::UpdateRoadSegments(float deltaTime)
     }
 }
 
-void Game::DrawRoadSegments() const
+void Game::DrawRoads() const
 {
     if (roadSegmentTextures.empty())
     {
         DrawLine(0, static_cast<int>(groundY), virtualScreenWidth, static_cast<int>(groundY), DARKGRAY);
         return;
     }
-    for (const auto& segment : activeRoadSegments)
+    for (const auto& [texture, xPosition] : activeRoadSegments)
     {
-        DrawTexture(segment.texture, static_cast<int>(segment.xPosition), static_cast<int>(groundY), WHITE);
+        DrawTexture(texture, static_cast<int>(xPosition), static_cast<int>(groundY), WHITE);
     }
 }
 

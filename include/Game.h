@@ -15,10 +15,23 @@ enum class GameState
     PAUSED
 };
 
+struct Road
+{
+    Texture2D texture;
+    float xPosition;
+};
+
+struct Cloud
+{
+    Texture2D texture;
+    Vector2 position;
+    float speed;
+};
+
 class Game
 {
 public:
-    Game(int screenWidth, int screenHeight, const char* title);
+    Game(int width, int height, const char* title);
     ~Game();
     void Run();
 
@@ -61,19 +74,20 @@ private:
     std::vector<Texture2D> bigCactusTextures;
     std::vector<Texture2D> roadSegmentTextures;
     std::vector<Texture2D> birdFrames;
+    Texture2D dinoDeadTexture;
+    Texture2D cloudTexture;
 
     // 音频资源
     Sound jumpSound;
     Sound dashSound;
+    Sound deadSound;
     Music bgmMusic;
 
-    struct RoadSegment
-    {
-        Texture2D texture;
-        float xPosition;
-    };
+    std::deque<Road> activeRoadSegments;
 
-    std::deque<RoadSegment> activeRoadSegments;
+    std::deque<Cloud> activeClouds; // 存储当前屏幕上的云彩
+    float cloudSpawnTimerValue; // 云彩生成计时器
+    float nextCloudSpawnTime;
 
     void InitGame();
     void UpdateGame(float deltaTime);
@@ -88,7 +102,10 @@ private:
     void UpdateRenderTextureScaling();
     void InitRoadSegments();
     void UpdateRoadSegments(float deltaTime);
-    void DrawRoadSegments() const;
+    void DrawRoads() const;
+    void SpawnCloud();
+    void UpdateClouds(float deltaTime);
+    void DrawClouds() const;
 };
 
 #endif // GAME_H
