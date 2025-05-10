@@ -2,25 +2,11 @@
 #define DINOSAUR_H
 
 #include "raylib.h"
+#include "Utils.h"
 #include <vector>
+#include "ParticleSystem.h"
 #include <string> // 良好包含习惯
 #include "raymath.h" // 用于 Vector2 操作
-
-// 冲刺粒子效果结构体
-struct DashParticle
-{
-    Vector2 position;
-    Vector2 velocity;
-    Color color;
-    float lifeRemaining;
-    float initialLife;
-    float size;
-    float rotation;
-    float angularVelocity;
-    float gravityEffect; // 每个粒子受到的重力影响程度
-    bool isLanded; // <--- 新增：是否已固定在地面
-    float landedScrollSpeedX; // <--- 新增：落地后随世界滚动的X速度
-};
 
 class Dinosaur
 {
@@ -106,19 +92,14 @@ private:
     float dashCooldownTimer; // 当前冷却剩余时间
     Vector2 dashDirection; // 冲刺方向 (主要用 x)
 
-    // 粒子系统
-    std::vector<DashParticle> particles;
-    float particleBaseGravity; // <--- 粒子基础重力
+    // ---- NEW: 粒子系统实例 ----
+    ParticleSystem dashTrailParticles;
+    ParticleProperties dashParticleProps; // 存储冲刺粒子的配置
 
     // 私有辅助方法
     void ExecuteJump();
     const std::vector<Texture2D>* GetCurrentAnimationFramesPointer() const;
     Texture2D GetCurrentTextureToDraw() const;
-
-    // 新增冲刺和粒子相关的私有方法
-    void EmitDashParticleTrail(float currentWorldScrollSpeed);
-    void UpdateParticles(float deltaTime);
-    void DrawParticles() const;
 };
 
 #endif // DINOSAUR_H

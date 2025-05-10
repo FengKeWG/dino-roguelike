@@ -14,11 +14,9 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
                    const Sound& dashSound)
     : position({0, 0}), velocity({0, 0}), groundY(initialGroundY), runHeight(0.0f),
       sneakHeight(0.0f), jumpSoundHandle(jumpSound), dashSoundHandle(dashSound),
-      isJumping(false),
-      isSneaking(false), facingRight(true),
+      isJumping(false), isSneaking(false), facingRight(true),
       runFrames(runTex), sneakFrames(sneakTex), deadTexture(deadTex),
-      isDead(false), currentAnimFrameIndex(0),
-      frameTimeCounter(0.0f),
+      isDead(false), currentAnimFrameIndex(0), frameTimeCounter(0.0f),
       animationSpeed(0.08f), collisionRect({0, 0, 0, 0}),
       gravity(1800.0f), jumpSpeed(-600.0f), coyoteTimeCounter(0.0f),
       jumpBufferCounter(0.0f), jumpQueued(false),
@@ -28,15 +26,36 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
       dashSpeedMagnitude(800.0f),
       dashDuration(0.18f),
       dashTimer(0.0f),
-      dashCooldown(0.0f),
+      dashCooldown(0.5f),
       dashCooldownTimer(0.0f),
       dashDirection({0.0f, 0.0f}),
-      particleBaseGravity(1200.0f)
+      dashTrailParticles(150)
 {
     runHeight = static_cast<float>(runFrames[0].height);
     sneakHeight = static_cast<float>(sneakFrames[0].height);
     position = {startX, initialGroundY - runHeight};
     UpdateCollisionRect();
+    dashParticleProps.lifeTimeMin = 0.8f; // 粒子生命长一点，以便看到它们落地
+    dashParticleProps.lifeTimeMax = 1.5f;
+    dashParticleProps.initialSpeedMin = 30.0f;
+    dashParticleProps.initialSpeedMax = 100.0f;
+    // 发射角度会根据冲刺方向动态调整
+    dashParticleProps.startSizeMin = 2.0f;
+    dashParticleProps.startSizeMax = 4.0f;
+    dashParticleProps.startColor = {80, 80, 80, 200}; // 深灰色，alpha不完全不透明
+    dashParticleProps.angularVelocityMin = -220.0f;
+    dashParticleProps.angularVelocityMax = 220.0f;
+    dashParticleProps.gravityScaleMin = 0.9f; // 受重力影响更明显
+    dashParticleProps.gravityScaleMax = 1.1f;
+    // dashParticleProps.fadeOut = false; // 这个属性已移除
+
+    // --- 关键: 设置粒子落地的Y坐标 ---
+    // groundY 是恐龙脚底的视觉位置，粒子应该停在视觉地面上
+    // 假设 roadSegment 纹理的高度就是地面厚度，或者直接使用 groundY
+    dashParticleProps.targetGroundY = groundY + GROUND_VISUAL_OFFSET; // 粒子停在恐龙脚下的地面
+
+    dashTrailParticles.SetGravity({0, gravity}); // 粒子系统使用恐龙的重力作为基础
+    // 然后每个粒子的 gravityEffect 再去调整
 }
 
 Dinosaur::~Dinosaur() = default;
@@ -86,7 +105,7 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
             velocity.y = 0;
         }
         UpdateCollisionRect(); // 仍然需要更新碰撞盒，即使只是为了绘制
-        // 不再处理动画、输入、冲刺冷却等
+        dashTrailParticles.Update(deltaTime);
         return;
     }
 
@@ -105,8 +124,35 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
         else
         {
             position.x += dashDirection.x * dashSpeedMagnitude * deltaTime;
-            // 在发射粒子时传递世界滚动速度，以便粒子落地后使用
-            EmitDashParticleTrail(worldScrollSpeed);
+
+            // ---- 修改: 发射冲刺粒子 ----
+            int particlesToEmit = GetRandomValue(2, 4); // 每次冲刺帧多发几个粒子
+            for (int i = 0; i < particlesToEmit; ++i)
+            {
+                // 从恐龙身体的随机位置发射
+                float dinoWidth = GetWidth();
+                float dinoHeight = GetHeight();
+                Vector2 particleEmitPos = {
+                    position.x + GetRandomFloat(dinoWidth * 0.1f, dinoWidth * 0.9f), // X在身体范围内随机
+                    position.y + GetRandomFloat(dinoHeight * 0.1f, dinoHeight * 0.9f) // Y在身体范围内随机
+                };
+
+                // 根据冲刺方向调整粒子初始喷射角度 (轻微向后上方)
+                if (dashDirection.x > 0)
+                {
+                    // 向右冲
+                    dashParticleProps.emissionAngleMin = 100.0f; // 左后偏上
+                    dashParticleProps.emissionAngleMax = 170.0f;
+                }
+                else
+                {
+                    // 向左冲
+                    dashParticleProps.emissionAngleMin = 10.0f; // 右后偏上
+                    dashParticleProps.emissionAngleMax = 80.0f;
+                }
+                // --- 传递 worldScrollSpeed ---
+                dashTrailParticles.Emit(particleEmitPos, 1, dashParticleProps, worldScrollSpeed);
+            }
         }
     }
 
@@ -201,169 +247,25 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
     }
 
     UpdateCollisionRect();
-    UpdateParticles(deltaTime);
-}
-
-void Dinosaur::EmitDashParticleTrail(const float currentWorldScrollSpeed)
-{
-    const int particlesToEmit = GetRandomValue(2, 3);
-    for (int i = 0; i < particlesToEmit; ++i)
-    {
-        DashParticle p;
-        const float dinoWidth = GetWidth();
-        const float dinoHeight = GetHeight();
-
-        const float randomXOffsetFactor = (GetRandomValue(0, 100) / 100.0f);
-        if (dashDirection.x > 0)
-        {
-            p.position.x = position.x + dinoWidth * (randomXOffsetFactor * 0.8f);
-        }
-        else
-        {
-            p.position.x = position.x + dinoWidth * (0.2f + randomXOffsetFactor * 0.8f);
-        }
-        const float randomYOffsetFactor = (GetRandomValue(0, 100) / 100.0f);
-        p.position.y = position.y + dinoHeight * randomYOffsetFactor;
-
-        const auto baseSpeedX = static_cast<float>(GetRandomValue(50, 120));
-        const auto baseSpeedY = static_cast<float>(GetRandomValue(80, 180));
-        float angleVariation = (GetRandomValue(-20, 20) * DEG2RAD);
-        p.velocity.x = -dashDirection.x * baseSpeedX * cos(angleVariation) - dashDirection.y * baseSpeedY * sin(
-            angleVariation);
-        p.velocity.y = -dashDirection.x * baseSpeedX * sin(angleVariation) + dashDirection.y * baseSpeedY *
-            cos(angleVariation) - baseSpeedY;
-
-        p.initialLife = static_cast<float>(GetRandomValue(80, 150)) / 100.0f;
-        p.lifeRemaining = p.initialLife;
-        p.size = static_cast<float>(GetRandomValue(2, 4));
-
-        constexpr unsigned char maxBaseColor = 83;
-        unsigned char baseShade = GetRandomValue(maxBaseColor - 25, maxBaseColor);
-        if (baseShade < 25) baseShade = 25;
-        p.color = {
-            static_cast<unsigned char>(baseShade + GetRandomValue(-8, 4)),
-            static_cast<unsigned char>(baseShade + GetRandomValue(-8, 4)),
-            static_cast<unsigned char>(baseShade + GetRandomValue(-8, 4)),
-            255
-        };
-        p.color.r = Clamp(p.color.r, 0, 255);
-        p.color.g = Clamp(p.color.g, 0, 255);
-        p.color.b = Clamp(p.color.b, 0, 255);
-
-        p.rotation = static_cast<float>(GetRandomValue(0, 359));
-        p.angularVelocity = static_cast<float>(GetRandomValue(-250, 250));
-        p.gravityEffect = static_cast<float>(GetRandomValue(90, 110)) / 100.0f;
-
-        p.isLanded = false;
-        p.landedScrollSpeedX = -currentWorldScrollSpeed;
-
-        particles.push_back(p);
-    }
-}
-
-void Dinosaur::UpdateParticles(const float deltaTime)
-{
-    const float particleGroundY = groundY + GROUND_VISUAL_OFFSET;
-
-    for (auto it = particles.begin(); it != particles.end();)
-    {
-        // 检查是否移出屏幕左侧
-        if (it->position.x + it->size < -50)
-        {
-            it = particles.erase(it);
-            continue;
-        }
-
-        if (!it->isLanded)
-        {
-            // --- 飞行中的粒子 ---
-            it->lifeRemaining -= deltaTime;
-            if (it->lifeRemaining <= 0.0f)
-            {
-                // 如果飞行生命周期耗尽，则移除
-                it = particles.erase(it);
-                continue;
-            }
-
-            // 更新物理状态
-            it->velocity.y += particleBaseGravity * it->gravityEffect * deltaTime;
-            it->position = Vector2Add(it->position, Vector2Scale(it->velocity, deltaTime));
-            it->rotation += it->angularVelocity * deltaTime;
-
-            // --- 关键：飞行时不改变颜色或Alpha ---
-            // (确保这里没有修改 it->color.r, g, b, 或 a 的代码)
-            // 它们将保持 EmitDashParticleTrail 中设置的初始颜色和Alpha (255)
-
-            // 检测落地
-            if (it->position.y + it->size >= particleGroundY && it->velocity.y > 0)
-            {
-                it->isLanded = true;
-                it->position.y = particleGroundY - it->size;
-                it->velocity.y = 0;
-                it->velocity.x = it->landedScrollSpeedX;
-                it->angularVelocity *= 0.3f;
-                // 落地后，lifeRemaining 的作用改变，主要由出屏决定其移除
-                // 但我们可以给它一个非常大的值，确保它不会因为这个先消失
-                it->lifeRemaining = 999.0f; // 一个象征性的超长值
-                // 落地后颜色和Alpha保持不变 (即初始值)
-            }
-        }
-        else
-        {
-            // --- 已落地的粒子 ---
-            it->position.x += it->landedScrollSpeedX * deltaTime;
-            it->rotation += it->angularVelocity * deltaTime * 0.1f;
-            if (std::abs(it->angularVelocity) > 0.1f)
-            {
-                it->angularVelocity *= 0.98f;
-            }
-            else
-            {
-                it->angularVelocity = 0;
-            }
-            // 颜色和Alpha保持不变
-        }
-        ++it;
-    }
-}
-
-
-void Dinosaur::DrawParticles() const
-{
-    for (const auto& p : particles)
-    {
-        // 使用 DrawRectanglePro 来支持旋转
-        DrawRectanglePro(
-            {p.position.x, p.position.y, p.size, p.size}, // 目标矩形
-            {p.size / 2, p.size / 2}, // 旋转中心点 (方块中心)
-            p.rotation, // 旋转角度
-            p.color // 颜色
-        );
-    }
+    dashTrailParticles.Update(deltaTime);
 }
 
 void Dinosaur::Draw() const
 {
-    DrawParticles();
-    if (const Texture2D texToDraw = GetCurrentTextureToDraw(); texToDraw.id > 0)
-    {
-        Rectangle sourceRec = {0.0f, 0.0f, static_cast<float>(texToDraw.width), static_cast<float>(texToDraw.height)};
-        if (!facingRight) sourceRec.width *= -1;
-        const Rectangle destRec = {
-            position.x, position.y, static_cast<float>(std::abs(texToDraw.width)), static_cast<float>(texToDraw.height)
-        };
-        constexpr Vector2 origin = {0.0f, 0.0f};
-        DrawTexturePro(texToDraw, sourceRec, destRec, origin, 0.0f, WHITE);
-    }
-    else
-    {
-        DrawRectangleRec(GetCollisionRect(), LIME);
-    }
+    dashTrailParticles.Draw();
+    const Texture2D texToDraw = GetCurrentTextureToDraw();
+    Rectangle sourceRec = {0.0f, 0.0f, static_cast<float>(texToDraw.width), static_cast<float>(texToDraw.height)};
+    if (!facingRight) sourceRec.width *= -1;
+    const Rectangle destRec = {
+        position.x, position.y, static_cast<float>(std::abs(texToDraw.width)), static_cast<float>(texToDraw.height)
+    };
+    constexpr Vector2 origin = {0.0f, 0.0f};
+    DrawTexturePro(texToDraw, sourceRec, destRec, origin, 0.0f, WHITE);
 }
 
 void Dinosaur::Move(const float direction, const float deltaTime)
 {
-    if (isDashing) return;
+    if (isDashing || isDead) return;
 
     float currentMoveSpeed = moveSpeed;
     if (isSneaking) { currentMoveSpeed *= 0.5f; }

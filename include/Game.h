@@ -5,6 +5,7 @@
 #include "Dinosaur.h"
 #include "Obstacle.h"
 #include "Bird.h"
+#include "InstructionText.h"
 #include <vector>
 #include <deque>
 
@@ -81,6 +82,7 @@ private:
     Sound jumpSound;
     Sound dashSound;
     Sound deadSound;
+    Sound bombSound;
     Music bgmMusic;
 
     std::deque<Road> activeRoadSegments;
@@ -88,6 +90,13 @@ private:
     std::deque<Cloud> activeClouds; // 存储当前屏幕上的云彩
     float cloudSpawnTimerValue; // 云彩生成计时器
     float nextCloudSpawnTime;
+
+    InstructionText jumpInstruction;
+    bool instructionHasBeenTriggeredThisSession;
+    float instructionActivationDelayTimer; // <--- 新增：用于延迟激活提示的计时器
+    const float INSTRUCTION_ACTIVATION_DELAY = 2.0f; // <--- 新增：延迟2秒后显示提示
+    bool instructionDelayPhaseActive; // <--- 新增：标记是否处于延迟激活阶段
+
 
     void InitGame();
     void UpdateGame(float deltaTime);

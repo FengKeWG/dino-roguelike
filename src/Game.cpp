@@ -29,8 +29,12 @@ Game::Game(const int width, const int height, const char* title)
       jumpSound{nullptr},
       dashSound{nullptr},
       deadSound{nullptr},
+      bombSound{nullptr},
       bgmMusic{nullptr},
-      cloudSpawnTimerValue(0.0f)
+      cloudSpawnTimerValue(0.0f),
+      instructionHasBeenTriggeredThisSession(false),
+      instructionActivationDelayTimer(0.0f), // <--- 初始化
+      instructionDelayPhaseActive(false) // <--- 初始化
 {
     srand(static_cast<unsigned int>(time(nullptr)));
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -45,8 +49,20 @@ Game::Game(const int width, const int height, const char* title)
     SetTargetFPS(160);
     targetRenderTexture = LoadRenderTexture(virtualScreenWidth, virtualScreenHeight);
     SetTextureFilter(targetRenderTexture.texture, TEXTURE_FILTER_POINT);
+    groundY = static_cast<float>(virtualScreenHeight) * 0.85f; // 先计算好 groundY
     LoadResources();
-    InitGame();
+    jumpInstruction.Initialize(
+        "Press SPACE or W to JUMP", // <--- 修改为英文
+        24, // 字体大小
+        DARKGRAY, // 文本颜色
+        // Fade(LIGHTGRAY, 0.9f),  // <--- 移除背景颜色参数
+        2.5f, // 显示时长
+        1600.0f, // 文本下落重力
+        virtualScreenWidth,
+        groundY,
+        bombSound
+    );
+    InitGame(); // InitGame 会设置 currentState 为 PAUSED
     HandleWindowResize();
 }
 
@@ -138,6 +154,7 @@ void Game::LoadResources()
     LoadSoundEffect("assets/sounds/jump.wav", jumpSound);
     LoadSoundEffect("assets/sounds/dash.wav", dashSound);
     LoadSoundEffect("assets/sounds/dead.wav", deadSound);
+    LoadSoundEffect("assets/sounds/bomb.wav", bombSound);
 
     bgmMusic = LoadMusicStream("assets/sounds/bgm.wav");
     if (bgmMusic.frameCount == 0) { TraceLog(LOG_WARNING, "Failed to load music stream: assets/sounds/bgm.wav"); }
@@ -166,6 +183,7 @@ void Game::UnloadResources()
     if (jumpSound.frameCount > 0) UnloadSound(jumpSound);
     if (dashSound.frameCount > 0) UnloadSound(dashSound);
     if (deadSound.frameCount > 0) UnloadSound(deadSound);
+    if (bombSound.frameCount > 0) UnloadSound(bombSound);
     if (bgmMusic.frameCount > 0)
     {
         StopMusicStream(bgmMusic);
@@ -197,6 +215,10 @@ void Game::InitGame()
 
     InitRoadSegments();
     currentState = GameState::PLAYING;
+    jumpInstruction.Reset();
+    instructionHasBeenTriggeredThisSession = false;
+    instructionActivationDelayTimer = 0.0f; // 重置延迟计时器
+    instructionDelayPhaseActive = true; // <--- 开始延迟激活阶段
 
     if (bgmMusic.frameCount > 0 && IsAudioDeviceReady())
     {
@@ -291,6 +313,34 @@ void Game::HandleInput()
 
 void Game::UpdateGame(const float deltaTime)
 {
+    if (jumpInstruction.IsActive())
+    {
+        jumpInstruction.Update(deltaTime);
+    }
+    // ---- END ----
+
+    // ---- 处理教学提示的延迟激活 ----
+    if (instructionDelayPhaseActive && !instructionHasBeenTriggeredThisSession && currentState == GameState::PLAYING)
+    {
+        instructionActivationDelayTimer += deltaTime;
+        if (instructionActivationDelayTimer >= INSTRUCTION_ACTIVATION_DELAY)
+        {
+            if (!jumpInstruction.IsActive())
+            {
+                TraceLog(LOG_INFO, "Delay complete. Activating jump instruction.");
+                // ---- 这里的 startPos 应该是文本的期望中心点 ----
+                Vector2 instructionCenterPos = {
+                    static_cast<float>(virtualScreenWidth) / 2.0f, // 水平居中
+                    80.0f // 期望的垂直中心位置 (可以调整，比如文字高度的一半 + 边距)
+                    // 例如： 60 (上边距) + (fontSize / 2) (文字高度一半，近似)
+                };
+                jumpInstruction.Activate(instructionCenterPos);
+                instructionHasBeenTriggeredThisSession = true;
+            }
+            instructionDelayPhaseActive = false;
+        }
+    }
+
     if (currentState == GameState::GAME_OVER || currentState == GameState::PAUSED)
     {
         return;
@@ -437,6 +487,13 @@ void Game::DrawGame() const
     DrawText(TextFormat("Score: %06d", score), 20, 20, 30, DARKGRAY);
     DrawText(TextFormat("Time: %.1fs", timePlayed),
              virtualScreenWidth - MeasureText(TextFormat("Time: %.1fs", timePlayed), 20) - 20, 20, 20, DARKGRAY);
+    if (jumpInstruction.IsActive() || (currentState == GameState::PLAYING && instructionDelayPhaseActive && !
+        instructionHasBeenTriggeredThisSession))
+    {
+        // 在延迟阶段，如果指令还未激活，不强制绘制，但 IsActive() 会处理
+        // 主要是确保如果指令本身 IsActive() 为 true，就绘制它
+        jumpInstruction.Draw(); // InstructionText::Draw 内部会判断是否真的需要画
+    }
     if (currentState == GameState::GAME_OVER)
     {
         DrawText("GAME OVER", virtualScreenWidth / 2 - MeasureText("GAME OVER", 70) / 2, virtualScreenHeight * 0.4f, 70,
