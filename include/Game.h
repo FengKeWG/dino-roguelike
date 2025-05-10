@@ -4,6 +4,7 @@
 #include "raylib.h"
 #include "Dinosaur.h"
 #include "Obstacle.h"
+#include "Cloud.h"
 #include "Bird.h"
 #include "InstructionManager.h"
 #include <vector>
@@ -20,13 +21,6 @@ struct Road
 {
     Texture2D texture;
     float xPosition;
-};
-
-struct Cloud
-{
-    Texture2D texture;
-    Vector2 position;
-    float speed;
 };
 
 class Game
@@ -86,7 +80,6 @@ private:
     Music bgmMusic;
 
     std::deque<Road> activeRoadSegments;
-
     std::deque<Cloud> activeClouds; // 存储当前屏幕上的云彩
     float cloudSpawnTimerValue; // 云彩生成计时器
     float nextCloudSpawnTime;
@@ -104,12 +97,11 @@ private:
     void UnloadResources();
     void HandleWindowResize();
     void UpdateRenderTextureScaling();
-    void InitRoadSegments();
+    void InitRoads();
     void UpdateRoadSegments(float deltaTime);
-    void DrawRoads() const;
+
     void SpawnCloud();
     void UpdateClouds(float deltaTime);
-    void DrawClouds() const;
 };
 
 #endif // GAME_H

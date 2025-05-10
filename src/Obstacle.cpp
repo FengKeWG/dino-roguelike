@@ -39,15 +39,7 @@ void Obstacle::Update(const float deltaTime)
 
 void Obstacle::Draw() const
 {
-    if (texture.id > 0)
-    {
-        DrawTexture(texture, static_cast<int>(position.x), static_cast<int>(position.y), WHITE);
-    }
-    else
-    {
-        DrawRectangleRec(GetCollisionRect(), RED); // 备用绘制
-    }
-    // DrawRectangleLinesEx(GetCollisionRect(), 1, BLUE); // 调试碰撞框
+    DrawTexture(texture, static_cast<int>(position.x), static_cast<int>(position.y), WHITE);
 }
 
 void Obstacle::UpdateCollisionRect()

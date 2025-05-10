@@ -200,7 +200,7 @@ void Game::InitGame()
     currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX
         / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
 
-    InitRoadSegments();
+    InitRoads();
     currentState = GameState::PLAYING;
     instructionManager.ResetAllInstructions();
     instructionManager.RequestShowInstruction("jump_tip");
@@ -438,11 +438,26 @@ void Game::DrawGame() const
 {
     BeginTextureMode(targetRenderTexture);
     ClearBackground(RAYWHITE);
-    DrawClouds();
-    DrawRoads();
-    if (dino) dino->Draw();
-    for (auto& obs : obstacles) obs.Draw();
-    for (auto& brd : birds) brd.Draw();
+    for (const auto& cloud : activeClouds)
+    {
+        cloud.Draw();
+    }
+    for (const auto& [texture, xPosition] : activeRoadSegments)
+    {
+        DrawTexture(texture, static_cast<int>(xPosition), static_cast<int>(groundY), WHITE);
+    }
+    if (dino)
+    {
+        dino->Draw();
+    }
+    for (auto& obs : obstacles)
+    {
+        obs.Draw();
+    }
+    for (auto& brd : birds)
+    {
+        brd.Draw();
+    }
     DrawText(TextFormat("Score: %06d", score), 20, 20, 30, DARKGRAY);
     DrawText(TextFormat("Time: %.1fs", timePlayed),
              virtualScreenWidth - MeasureText(TextFormat("Time: %.1fs", timePlayed), 20) - 20, 20, 20, DARKGRAY);
@@ -482,36 +497,27 @@ void Game::DrawGame() const
 
 void Game::SpawnCloud()
 {
-    if (cloudTexture.id <= 0) return;
-    Cloud newCloud;
-    newCloud.texture = cloudTexture;
-    newCloud.position.x = static_cast<float>(virtualScreenWidth) + GetRandomValue(50, cloudTexture.width * 2);
-    newCloud.position.y = static_cast<float>(GetRandomValue(virtualScreenHeight / 8, virtualScreenHeight / 2));
-    newCloud.speed = static_cast<float>(GetRandomValue(15, 45)) + currentWorldScrollSpeed * 0.05f;
-    activeClouds.push_back(newCloud);
+    Vector2 initialPosition;
+    initialPosition.x = static_cast<float>(virtualScreenWidth) + GetRandomValue(50, cloudTexture.width * 2);
+    initialPosition.y = static_cast<float>(GetRandomValue(virtualScreenHeight / 8, virtualScreenHeight / 2));
+    float cloudSpeed = static_cast<float>(GetRandomValue(15, 45)) + currentWorldScrollSpeed * 0.05f;
+    activeClouds.emplace_back(cloudTexture, initialPosition, cloudSpeed);
 }
+
 
 void Game::UpdateClouds(const float deltaTime)
 {
-    for (auto it = activeClouds.begin(); it != activeClouds.end();)
+    for (auto it = activeClouds.begin(); it != activeClouds.end(); /* no increment here */)
     {
-        it->position.x -= it->speed * deltaTime;
-        if (it->position.x + it->texture.width < 0)
+        it->Update(deltaTime); // 调用 Cloud 对象的 Update 方法
+        if (it->IsOffScreen()) // 调用 Cloud 对象的 IsOffScreen 方法
         {
-            it = activeClouds.erase(it);
+            it = activeClouds.erase(it); // 如果移出屏幕，则移除
         }
         else
         {
-            ++it;
+            ++it; // 否则迭代到下一个
         }
-    }
-}
-
-void Game::DrawClouds() const
-{
-    for (const auto& cloud : activeClouds)
-    {
-        DrawTextureV(cloud.texture, cloud.position, WHITE);
     }
 }
 
@@ -544,7 +550,7 @@ void Game::HandleWindowResize()
         dino->position.y = groundY - dino->GetHeight();
         dino->UpdateCollisionRect();
     }
-    InitRoadSegments();
+    InitRoads();
     TraceLog(LOG_INFO, "Window resized/state changed: Phys: %dx%d, Virt: %dx%d. Render scale: %.2f. FakeFullscreen: %s",
              screenWidth, screenHeight, virtualScreenWidth, virtualScreenHeight, destRec.width / virtualScreenWidth,
              isFullscreen ? "ON" : "OFF");
@@ -565,7 +571,7 @@ void Game::UpdateRenderTextureScaling()
     origin = {0.0f, 0.0f};
 }
 
-void Game::InitRoadSegments()
+void Game::InitRoads()
 {
     activeRoadSegments.clear();
     if (roadSegmentTextures.empty() || roadSegmentTextures[0].id == 0) return;
@@ -598,7 +604,7 @@ void Game::UpdateRoadSegments(float deltaTime)
     }
     else
     {
-        InitRoadSegments();
+        InitRoads();
         if (!activeRoadSegments.empty())
         {
             rightmostX = activeRoadSegments.back().xPosition + activeRoadSegments.back().texture.width;
@@ -611,19 +617,6 @@ void Game::UpdateRoadSegments(float deltaTime)
         const Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
         activeRoadSegments.push_back({chosenRoadTex, rightmostX});
         rightmostX += chosenRoadTex.width;
-    }
-}
-
-void Game::DrawRoads() const
-{
-    if (roadSegmentTextures.empty())
-    {
-        DrawLine(0, static_cast<int>(groundY), virtualScreenWidth, static_cast<int>(groundY), DARKGRAY);
-        return;
-    }
-    for (const auto& [texture, xPosition] : activeRoadSegments)
-    {
-        DrawTexture(texture, static_cast<int>(xPosition), static_cast<int>(groundY), WHITE);
     }
 }
 

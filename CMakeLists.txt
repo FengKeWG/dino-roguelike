@@ -25,6 +25,8 @@ add_executable(DinoRoguelike src/main.cpp
         include/InstructionText.h
         src/InstructionManager.cpp
         include/InstructionManager.h
+        src/Cloud.cpp
+        include/Cloud.h
 )
 
 # 链接 raylib 库
