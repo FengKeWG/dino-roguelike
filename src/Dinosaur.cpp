@@ -35,8 +35,8 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
     sneakHeight = static_cast<float>(sneakFrames[0].height);
     position = {startX, initialGroundY - runHeight};
     UpdateCollisionRect();
-    dashParticleProps.lifeTimeMin = 0.8f; // 粒子生命长一点，以便看到它们落地
-    dashParticleProps.lifeTimeMax = 1.5f;
+    dashParticleProps.lifeTimeMin = 2.0f; // 粒子生命长一点，以便看到它们落地
+    dashParticleProps.lifeTimeMax = 5.0f;
     dashParticleProps.initialSpeedMin = 30.0f;
     dashParticleProps.initialSpeedMax = 100.0f;
     // 发射角度会根据冲刺方向动态调整
@@ -45,8 +45,8 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
     dashParticleProps.startColor = {80, 80, 80, 200}; // 深灰色，alpha不完全不透明
     dashParticleProps.angularVelocityMin = -220.0f;
     dashParticleProps.angularVelocityMax = 220.0f;
-    dashParticleProps.gravityScaleMin = 0.9f; // 受重力影响更明显
-    dashParticleProps.gravityScaleMax = 1.1f;
+    dashParticleProps.gravityScaleMin = 0.1f; // 受重力影响更明显
+    dashParticleProps.gravityScaleMax = 0.5f;
     // dashParticleProps.fadeOut = false; // 这个属性已移除
 
     // --- 关键: 设置粒子落地的Y坐标 ---

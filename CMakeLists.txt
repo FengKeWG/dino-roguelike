@@ -23,6 +23,8 @@ add_executable(DinoRoguelike src/main.cpp
         include/ParticleSystem.h
         src/InstructionText.cpp
         include/InstructionText.h
+        src/InstructionManager.cpp
+        include/InstructionManager.h
 )
 
 # 链接 raylib 库

@@ -5,7 +5,7 @@
 #include "Dinosaur.h"
 #include "Obstacle.h"
 #include "Bird.h"
-#include "InstructionText.h"
+#include "InstructionManager.h"
 #include <vector>
 #include <deque>
 
@@ -91,12 +91,7 @@ private:
     float cloudSpawnTimerValue; // 云彩生成计时器
     float nextCloudSpawnTime;
 
-    InstructionText jumpInstruction;
-    bool instructionHasBeenTriggeredThisSession;
-    float instructionActivationDelayTimer; // <--- 新增：用于延迟激活提示的计时器
-    const float INSTRUCTION_ACTIVATION_DELAY = 2.0f; // <--- 新增：延迟2秒后显示提示
-    bool instructionDelayPhaseActive; // <--- 新增：标记是否处于延迟激活阶段
-
+    InstructionManager instructionManager;
 
     void InitGame();
     void UpdateGame(float deltaTime);
