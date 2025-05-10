@@ -35,27 +35,21 @@ Dinosaur::Dinosaur(const float startX, const float initialGroundY,
     sneakHeight = static_cast<float>(sneakFrames[0].height);
     position = {startX, initialGroundY - runHeight};
     UpdateCollisionRect();
-    dashParticleProps.lifeTimeMin = 2.0f; // 粒子生命长一点，以便看到它们落地
+    dashParticleProps.lifeTimeMin = 2.0f;
     dashParticleProps.lifeTimeMax = 5.0f;
     dashParticleProps.initialSpeedMin = 30.0f;
     dashParticleProps.initialSpeedMax = 100.0f;
-    // 发射角度会根据冲刺方向动态调整
     dashParticleProps.startSizeMin = 2.0f;
     dashParticleProps.startSizeMax = 4.0f;
-    dashParticleProps.startColor = {80, 80, 80, 200}; // 深灰色，alpha不完全不透明
+    dashParticleProps.startColor = {80, 80, 80, 200};
     dashParticleProps.angularVelocityMin = -220.0f;
     dashParticleProps.angularVelocityMax = 220.0f;
-    dashParticleProps.gravityScaleMin = 0.1f; // 受重力影响更明显
+    dashParticleProps.gravityScaleMin = 0.1f;
     dashParticleProps.gravityScaleMax = 0.5f;
-    // dashParticleProps.fadeOut = false; // 这个属性已移除
 
-    // --- 关键: 设置粒子落地的Y坐标 ---
-    // groundY 是恐龙脚底的视觉位置，粒子应该停在视觉地面上
-    // 假设 roadSegment 纹理的高度就是地面厚度，或者直接使用 groundY
-    dashParticleProps.targetGroundY = groundY + GROUND_VISUAL_OFFSET; // 粒子停在恐龙脚下的地面
+    dashParticleProps.targetGroundY = groundY + GROUND_VISUAL_OFFSET;
 
-    dashTrailParticles.SetGravity({0, gravity}); // 粒子系统使用恐龙的重力作为基础
-    // 然后每个粒子的 gravityEffect 再去调整
+    dashTrailParticles.SetGravity({0, gravity});
 }
 
 Dinosaur::~Dinosaur() = default;
@@ -125,14 +119,13 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
         {
             position.x += dashDirection.x * dashSpeedMagnitude * deltaTime;
 
-            // ---- 修改: 发射冲刺粒子 ----
-            int particlesToEmit = GetRandomValue(2, 4); // 每次冲刺帧多发几个粒子
+            const int particlesToEmit = GetRandomValue(2, 4); // 每次冲刺帧多发几个粒子
             for (int i = 0; i < particlesToEmit; ++i)
             {
                 // 从恐龙身体的随机位置发射
-                float dinoWidth = GetWidth();
-                float dinoHeight = GetHeight();
-                Vector2 particleEmitPos = {
+                const float dinoWidth = GetWidth();
+                const float dinoHeight = GetHeight();
+                const Vector2 particleEmitPos = {
                     position.x + GetRandomFloat(dinoWidth * 0.1f, dinoWidth * 0.9f), // X在身体范围内随机
                     position.y + GetRandomFloat(dinoHeight * 0.1f, dinoHeight * 0.9f) // Y在身体范围内随机
                 };

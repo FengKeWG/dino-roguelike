@@ -205,6 +205,7 @@ void Game::InitGame()
     instructionManager.ResetAllInstructions();
     instructionManager.RequestShowInstruction("jump_tip");
     instructionManager.RequestShowInstruction("move_tip");
+    instructionManager.RequestShowInstruction("dash_tip");
     if (bgmMusic.frameCount > 0 && IsAudioDeviceReady())
     {
         SeekMusicStream(bgmMusic, 0.0f);
@@ -298,7 +299,7 @@ void Game::HandleInput()
 
 void Game::UpdateGame(const float deltaTime)
 {
-    instructionManager.Update(deltaTime);
+    instructionManager.Update(deltaTime, currentWorldScrollSpeed);
 
     if (currentState == GameState::GAME_OVER || currentState == GameState::PAUSED)
     {
@@ -326,15 +327,15 @@ void Game::UpdateGame(const float deltaTime)
     // 障碍物和鸟的更新 (与之前相同)
     for (auto it = obstacles.begin(); it != obstacles.end();)
     {
-        it->speed = currentWorldScrollSpeed; // 障碍物使用正的速度，在内部处理为向左移动
+        it->setSpeed(currentWorldScrollSpeed);
         it->Update(deltaTime);
-        if (it->IsOffScreen(static_cast<float>(virtualScreenWidth))) it = obstacles.erase(it);
+        if (it->IsOffScreen())it = obstacles.erase(it);
         else ++it;
     }
     for (auto it = birds.begin(); it != birds.end();)
     {
         const float birdSpeedFactor = 0.3f + (static_cast<float>(rand() % 221) / 100.0f);
-        it->speed = currentWorldScrollSpeed * birdSpeedFactor;
+        it->setSpeed(currentWorldScrollSpeed * birdSpeedFactor);
         it->Update(deltaTime);
         if (it->IsOffScreen()) it = birds.erase(it);
         else ++it;
@@ -396,6 +397,8 @@ void Game::SpawnObstacleOrBird()
 
 void Game::CheckCollisions()
 {
+    if (!dino) return;
+
     const Rectangle dinoRect = dino->GetCollisionRect();
     bool collisionDetected = false;
 
@@ -416,6 +419,16 @@ void Game::CheckCollisions()
                 collisionDetected = true;
                 break;
             }
+        }
+    }
+
+    if (!collisionDetected && instructionManager.IsAnyInstructionActiveAndCollidable())
+    {
+        Rectangle instructionRect = instructionManager.GetActiveInstructionCollisionRect();
+        if (CheckCollisionRecs(dinoRect, instructionRect))
+        {
+            collisionDetected = true;
+            TraceLog(LOG_INFO, "Dinosaur collided with an active instruction text!");
         }
     }
 

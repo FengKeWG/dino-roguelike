@@ -5,20 +5,16 @@
 #include "Utils.h"
 #include <vector>
 #include "ParticleSystem.h"
-#include <string> // 良好包含习惯
-#include "raymath.h" // 用于 Vector2 操作
 
 class Dinosaur
 {
 public:
-    // 公共成员
     Vector2 position;
-    Vector2 velocity; // y用于跳跃/重力, x用于普通移动
+    Vector2 velocity;
     float groundY;
-    float runHeight; // 跑动时的高度
-    float sneakHeight; // 潜行时的高度
+    float runHeight;
+    float sneakHeight;
 
-    // 构造函数 & 析构函数
     Dinosaur(float startX, float initialGroundY,
              const std::vector<Texture2D>& runTex,
              const std::vector<Texture2D>& sneakTex,
@@ -27,50 +23,43 @@ public:
              const Sound& dashSound);
     ~Dinosaur();
 
-    //核心方法
     void Update(float deltaTime, float worldScrollSpeed);
     void Draw() const;
 
-    // 行为
     void RequestJump();
     void StartSneaking();
     void StopSneaking();
-    void Move(float direction, float deltaTime); // 水平移动输入
-    void RequestDash(); // 新增：冲刺请求
+    void Move(float direction, float deltaTime);
+    void RequestDash();
     void MarkAsDead();
 
-    // Getters
     Rectangle GetCollisionRect() const;
     float GetWidth() const;
     float GetHeight() const;
     bool IsOnGround() const;
     bool IsSneaking() const { return isSneaking; }
     bool IsJumping() const { return isJumping; }
-    bool IsFacingRight() const { return facingRight; } // 获取朝向
+    bool IsFacingRight() const { return facingRight; }
 
     void UpdateCollisionRect();
 
 private:
-    // 内部状态
     Sound jumpSoundHandle;
     Sound dashSoundHandle;
     bool isJumping;
     bool isSneaking;
-    bool facingRight; // true代表朝右
+    bool facingRight;
 
-    // 动画
     std::vector<Texture2D> runFrames;
     std::vector<Texture2D> sneakFrames;
-    Texture2D deadTexture; // <--- 新增：存储死亡纹理
+    Texture2D deadTexture;
     bool isDead;
     int currentAnimFrameIndex;
     float frameTimeCounter;
     float animationSpeed;
 
-    // 碰撞
-    Rectangle collisionRect; // 原始包围盒
+    Rectangle collisionRect;
 
-    // 跳跃机制
     float gravity;
     float jumpSpeed;
     float coyoteTimeDuration = 0.1f;
@@ -79,24 +68,19 @@ private:
     float jumpBufferCounter;
     bool jumpQueued;
     float sneakGravityMultiplier;
-
-    // 移动
     float moveSpeed;
 
-    // --- 新增冲刺属性 ---
     bool isDashing;
-    float dashSpeedMagnitude; // 冲刺速度大小
-    float dashDuration; // 冲刺持续时间
-    float dashTimer; // 当前冲刺已进行时间
-    float dashCooldown; // 冲刺冷却时间
-    float dashCooldownTimer; // 当前冷却剩余时间
-    Vector2 dashDirection; // 冲刺方向 (主要用 x)
+    float dashSpeedMagnitude;
+    float dashDuration;
+    float dashTimer;
+    float dashCooldown;
+    float dashCooldownTimer;
+    Vector2 dashDirection;
 
-    // ---- NEW: 粒子系统实例 ----
     ParticleSystem dashTrailParticles;
-    ParticleProperties dashParticleProps; // 存储冲刺粒子的配置
+    ParticleProperties dashParticleProps;
 
-    // 私有辅助方法
     void ExecuteJump();
     const std::vector<Texture2D>* GetCurrentAnimationFramesPointer() const;
     Texture2D GetCurrentTextureToDraw() const;

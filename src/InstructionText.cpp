@@ -15,8 +15,8 @@ InstructionText::InstructionText()
       screenWidthForCentering(960)
 {
     // ---- NEW: 配置爆炸粒子属性 ----
-    explosionParticleProps.lifeTimeMin = 0.3f;
-    explosionParticleProps.lifeTimeMax = 0.8f;
+    explosionParticleProps.lifeTimeMin = 1.0f;
+    explosionParticleProps.lifeTimeMax = 2.0f;
     explosionParticleProps.initialSpeedMin = 80.0f;
     explosionParticleProps.initialSpeedMax = 250.0f;
     explosionParticleProps.emissionAngleMin = 0.0f; // 全方位爆炸
@@ -104,7 +104,7 @@ bool InstructionText::IsActive() const
     return currentState != InstructionTextState::INACTIVE && currentState != InstructionTextState::DONE;
 }
 
-void InstructionText::Update(float deltaTime)
+void InstructionText::Update(float deltaTime, float worldScrollSpeed) // <--- 新代码
 {
     if (!IsActive() && currentState != InstructionTextState::EXPLODING)
     {
@@ -148,7 +148,7 @@ void InstructionText::Update(float deltaTime)
                 textBounds.x + textBounds.width / 2.0f,
                 textBounds.y + textBounds.height / 2.0f // 从文本区域中心爆炸
             };
-            explosionParticles.Emit(explosionCenter, GetRandomValue(80, 150), explosionParticleProps, 0.0f);
+            explosionParticles.Emit(explosionCenter, GetRandomValue(80, 150), explosionParticleProps, worldScrollSpeed);
         }
         break;
 
@@ -175,7 +175,8 @@ void InstructionText::Draw() const
     if (currentState == InstructionTextState::DISPLAYING || currentState == InstructionTextState::FALLING)
     {
         // DrawRectangleRec(boxRec, boxBgColor); // <--- 移除绘制方框
-        DrawText(message.c_str(), static_cast<int>(textDrawPosition.x), static_cast<int>(textDrawPosition.y), fontSize,
+        DrawText(message.c_str(), static_cast<int>(textDrawPosition.x), static_cast<int>(textDrawPosition.y),
+                 fontSize,
                  textColor);
     }
 

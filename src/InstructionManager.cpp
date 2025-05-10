@@ -3,8 +3,8 @@
 #include "raylib.h" // For TraceLog, etc.
 
 InstructionManager::InstructionManager()
-    : screenWidthRef(0), groundYRef(0.0f), bombSoundRef{0},
-      currentActiveInstructionId("")
+    : currentActiveInstructionId(""), screenWidthRef(0), groundYRef(0.0f),
+      bombSoundRef{nullptr}
 {
     // activeInstructionText 会被默认构造
 }
@@ -17,32 +17,33 @@ void InstructionManager::Initialize(int virtualScreenWidth, float groundY, Sound
 
     instructionConfigs.clear(); // 清除旧配置
 
-    // 在这里定义所有的教学提示
-    // 提示1: 跳跃
     instructionConfigs.emplace("jump_tip",
                                InstructionData("jump_tip", "Press SPACE or W to JUMP", 24, DARKGRAY,
                                                2.5f, 1600.0f,
-                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 80.0f}, // 期望中心位置
-                                               2.0f, // 延迟2秒激活
-                                               true)); // 必须显示
-
-    // 提示2: 移动
-    instructionConfigs.emplace("move_tip",
-                               InstructionData("move_tip", "Press A or D to MOVE", 24, DARKBLUE,
-                                               3.0f, 1500.0f,
-                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 120.0f},
-                                               5.0f, // 在被请求后延迟0.5秒激活 (这个延迟可以由Game类控制何时Request)
+                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
+                                               2.0f,
                                                true));
 
-    // 提示3: BOSS出现 (示例)
-    instructionConfigs.emplace("boss_warning",
-                               InstructionData("boss_warning", "BOSS APPROACHING!", 32, RED,
-                                               4.0f, 1200.0f,
+    instructionConfigs.emplace("move_tip",
+                               InstructionData("move_tip", "Press A or D to MOVE", 24, DARKGRAY,
+                                               3.0f, 1600.0f,
                                                {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
-                                               0.0f, // 立即显示
-                                               true)); // 假设BOSS警告总是显示
+                                               4.0f,
+                                               true));
 
-    // ...可以添加更多提示...
+    instructionConfigs.emplace("jump_tip",
+                               InstructionData("jump_tip", "Press SPACE or W to JUMP", 24, DARKGRAY,
+                                               2.5f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
+                                               2.0f,
+                                               true));
+
+    instructionConfigs.emplace("dash_tip",
+                               InstructionData("dash_tip", "Press Shift to DASH", 24, DARKGRAY,
+                                               3.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
+                                               6.0f,
+                                               true));
 
     ResetAllInstructions(); // 确保初始状态正确
 }
@@ -84,13 +85,38 @@ bool InstructionManager::isAnyInstructionBeingProcessed() const
     return !currentActiveInstructionId.empty() || activeInstructionText.IsActive();
 }
 
+// 新增方法实现
+bool InstructionManager::IsAnyInstructionActiveAndCollidable() const
+{
+    if (!currentActiveInstructionId.empty() && activeInstructionText.IsActive())
+    {
+        InstructionTextState state = activeInstructionText.GetCurrentState();
+        // 只有在显示或下落状态才可碰撞
+        return (state == InstructionTextState::DISPLAYING || state == InstructionTextState::FALLING);
+    }
+    return false;
+}
 
-void InstructionManager::Update(float deltaTime)
+// 新增方法实现
+Rectangle InstructionManager::GetActiveInstructionCollisionRect() const
+{
+    if (IsAnyInstructionActiveAndCollidable())
+    {
+        return activeInstructionText.GetCollisionRect();
+    }
+    // 如果没有活动的、可碰撞的提示，返回一个空矩形
+    return {0, 0, 0, 0};
+}
+
+
+void InstructionManager::Update(float deltaTime, float worldScrollSpeed) // <--- 新代码
 {
     // 1. 更新当前活跃的 InstructionText 对象
     if (activeInstructionText.IsActive())
     {
-        activeInstructionText.Update(deltaTime);
+        // activeInstructionText.Update(deltaTime); // <--- 旧代码
+        activeInstructionText.Update(deltaTime, worldScrollSpeed); // <--- 新代码
+
         if (activeInstructionText.IsDone())
         {
             // TraceLog(LOG_INFO, "InstructionManager: Active instruction '%s' is done.", currentActiveInstructionId.c_str());

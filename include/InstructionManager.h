@@ -50,7 +50,7 @@ public:
     // 例如：Game::UpdateGame() 中特定条件满足时调用 RequestShowInstruction("jump_tip");
     void RequestShowInstruction(const std::string& instructionId);
 
-    void Update(float deltaTime);
+    void Update(float deltaTime, float worldScrollSpeed);
     void Draw() const;
 
     // 重置所有提示的状态（例如新游戏开始时）
@@ -61,6 +61,11 @@ public:
 
     // 检查某个特定提示当前是否活跃（显示、下落、爆炸）
     bool IsInstructionActive(const std::string& instructionId) const;
+
+    // 新增方法：检查是否有活动的、可碰撞的提示
+    bool IsAnyInstructionActiveAndCollidable() const;
+    // 新增方法：获取活动提示的碰撞矩形
+    Rectangle GetActiveInstructionCollisionRect() const;
 
 private:
     std::map<std::string, InstructionData> instructionConfigs; // 存储所有提示的配置数据

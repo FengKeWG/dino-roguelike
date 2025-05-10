@@ -2,27 +2,20 @@
 #include <iostream>
 
 Bird::Bird(const float startX, const float startY, const float birdSpeed, const std::vector<Texture2D>& frames)
-    : speed(birdSpeed), flyFrames(frames), currentFrame(0),
-      frameTimeCounter(0.0f), frameSpeed(0.15f)
+    : position({startX, startY}),
+      speed(birdSpeed),
+      collisionRect({startX, startY, 30, 20}),
+      flyFrames(frames),
+      currentFrame(0),
+      frameTimeCounter(0.0f),
+      frameSpeed(0.15f)
 {
-    // 小鸟动画帧速
-
-    if (flyFrames.empty() || flyFrames[0].id == 0)
-    {
-        std::cerr << "Warning: Bird frames not loaded or empty!" << std::endl;
-        position = {startX, startY};
-        collisionRect = {position.x, position.y, 30, 20}; // 默认碰撞盒
-    }
-    else
-    {
-        position = {startX, startY};
-        collisionRect = {
-            position.x,
-            position.y,
-            static_cast<float>(flyFrames[0].width),
-            static_cast<float>(flyFrames[0].height)
-        };
-    }
+    collisionRect = {
+        position.x,
+        position.y,
+        static_cast<float>(flyFrames[0].width),
+        static_cast<float>(flyFrames[0].height)
+    };
 }
 
 Bird::~Bird() = default;
@@ -30,8 +23,6 @@ Bird::~Bird() = default;
 void Bird::Update(const float deltaTime)
 {
     position.x -= speed * deltaTime;
-
-    // 动画更新
     frameTimeCounter += deltaTime;
     if (frameTimeCounter >= frameSpeed)
     {
@@ -53,9 +44,8 @@ void Bird::Draw() const
     }
     else
     {
-        DrawRectangleRec(GetCollisionRect(), SKYBLUE); // 备用绘制
+        DrawRectangleRec(GetCollisionRect(), SKYBLUE);
     }
-    // DrawRectangleLinesEx(GetCollisionRect(), 1, DARKBLUE);
 }
 
 void Bird::UpdateCollisionRect()
@@ -82,7 +72,7 @@ float Bird::GetWidth() const
     {
         return static_cast<float>(flyFrames[currentFrame].width);
     }
-    return 30.0f; // Default
+    return 30.0f;
 }
 
 float Bird::GetHeight() const
@@ -91,5 +81,10 @@ float Bird::GetHeight() const
     {
         return static_cast<float>(flyFrames[currentFrame].height);
     }
-    return 20.0f; // Default
+    return 20.0f;
+}
+
+void Bird::setSpeed(const float newSpeed)
+{
+    speed = newSpeed;
 }

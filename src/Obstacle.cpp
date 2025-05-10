@@ -2,25 +2,16 @@
 #include <iostream>
 
 Obstacle::Obstacle(const float startX, const float groundYPos, const float obstacleSpeed, const Texture2D& tex)
-    : speed(obstacleSpeed), texture(tex)
+    : position({0.0f, 0.0f}), speed(obstacleSpeed), collisionRect({0.0f, 0.0f, 20.0f, 50.0f}), texture(tex)
 {
-    float obstacleHeight = 0;
-    float obstacleWidth = 0;
-
-    if (texture.id == 0)
-    {
-        std::cerr << "Warning: Obstacle texture not loaded!" << std::endl;
-        obstacleHeight = 50.0f;
-        obstacleWidth = 20.0f;
-    }
-    else
+    float obstacleHeight = 50.0f;
+    float obstacleWidth = 20.0f;
+    if (texture.id != 0)
     {
         obstacleHeight = static_cast<float>(texture.height);
         obstacleWidth = static_cast<float>(texture.width);
     }
-
     position = {startX, (groundYPos + 8.0f) - obstacleHeight};
-
     collisionRect = {
         position.x,
         position.y,
@@ -39,7 +30,14 @@ void Obstacle::Update(const float deltaTime)
 
 void Obstacle::Draw() const
 {
-    DrawTexture(texture, static_cast<int>(position.x), static_cast<int>(position.y), WHITE);
+    if (texture.id > 0)
+    {
+        DrawTexture(texture, static_cast<int>(position.x), static_cast<int>(position.y), WHITE);
+    }
+    else
+    {
+        DrawRectangleRec(collisionRect, RED);
+    }
 }
 
 void Obstacle::UpdateCollisionRect()
@@ -58,10 +56,8 @@ Rectangle Obstacle::GetCollisionRect() const
     return collisionRect;
 }
 
-bool Obstacle::IsOffScreen(float /*screenWidth*/) const
+bool Obstacle::IsOffScreen() const
 {
-    // screenWidth 参数暂时不用，因为只判断左边
-    // 检查障碍物是否完全移出屏幕左侧
     return (position.x + GetWidth()) < 0;
 }
 
@@ -71,5 +67,15 @@ float Obstacle::GetWidth() const
     {
         return static_cast<float>(texture.width);
     }
-    return 20.0f; // Default
+    return 20.0f;
+}
+
+float Obstacle::getSpeed() const
+{
+    return speed;
+}
+
+void Obstacle::setSpeed(const float newSpeed)
+{
+    speed = newSpeed;
 }

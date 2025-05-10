@@ -35,11 +35,14 @@ public:
                     const Sound& explosionSfx); // <--- 添加 groundY 用于粒子
 
     void Activate(Vector2 startPos); // groundY 已在Initialize时传入
-    void Update(float deltaTime);
+    void Update(float deltaTime, float worldScrollSpeed);
     void Draw() const;
     void Reset();
     bool IsDone() const;
     bool IsActive() const;
+    Rectangle GetCollisionRect() const { return textBounds; }
+    // 新增方法：获取当前状态
+    InstructionTextState GetCurrentState() const { return currentState; }
 
 private:
     InstructionTextState currentState;
