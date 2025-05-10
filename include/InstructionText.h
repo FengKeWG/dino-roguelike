@@ -7,7 +7,6 @@
 #include <vector>
 #include "ParticleSystem.h" // <--- 包含新的粒子系统
 
-// ... (InstructionTextState enum 保持不变) ...
 enum class InstructionTextState
 {
     INACTIVE,
@@ -16,9 +15,6 @@ enum class InstructionTextState
     EXPLODING,
     DONE
 };
-
-// ---- REMOVE: InstructionTextParticle 结构体 ----
-// struct InstructionTextParticle { ... };
 
 class InstructionText
 {
@@ -55,23 +51,14 @@ private:
     float displayTime;
     float currentTimer;
     float gravity;
-    float groundReferenceY; // 文本框碰撞地面用
+    float groundReferenceY;
     Sound bombSound;
-    // ---- REMOVE: 旧的粒子vector ----
-    // std::vector<InstructionTextParticle> particles;
-    // float explosionEffectTimer;
-    // float currentExplosionTime;
 
     // ---- NEW: 粒子系统实例 ----
     ParticleSystem explosionParticles;
     ParticleProperties explosionParticleProps; // 存储爆炸粒子的配置
     float explosionDuration; // 爆炸效果总持续时间
     int screenWidthForCentering;
-
-    // ---- REMOVE: 旧的粒子私有方法 ----
-    // void SpawnExplosionParticles();
-    // void UpdateExplosionParticles(float deltaTime);
-    // void DrawExplosionParticles() const;
 
     void CalculateTextLayout(Vector2 startPos = {-1, -1});
 };

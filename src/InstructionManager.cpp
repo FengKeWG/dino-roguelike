@@ -1,12 +1,10 @@
-// InstructionManager.cpp
 #include "../include/InstructionManager.h"
-#include "raylib.h" // For TraceLog, etc.
+#include "raylib.h"
+#include <algorithm>
 
 InstructionManager::InstructionManager()
-    : currentActiveInstructionId(""), screenWidthRef(0), groundYRef(0.0f),
-      bombSoundRef{nullptr}
+    : screenWidthRef(0), groundYRef(0.0f), bombSoundRef{nullptr}
 {
-    // activeInstructionText 会被默认构造
 }
 
 void InstructionManager::Initialize(int virtualScreenWidth, float groundY, Sound bombSfx)
@@ -15,195 +13,143 @@ void InstructionManager::Initialize(int virtualScreenWidth, float groundY, Sound
     groundYRef = groundY;
     bombSoundRef = bombSfx;
 
-    instructionConfigs.clear(); // 清除旧配置
+    instructionConfigs.clear();
+    activeInstructionTexts.clear();
 
     instructionConfigs.emplace("jump_tip",
                                InstructionData("jump_tip", "Press SPACE or W to JUMP", 24, DARKGRAY,
-                                               2.5f, 1600.0f,
-                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
-                                               2.0f,
-                                               true));
-
-    instructionConfigs.emplace("move_tip",
-                               InstructionData("move_tip", "Press A or D to MOVE", 24, DARKGRAY,
-                                               3.0f, 1600.0f,
+                                               2.0f, 1600.0f,
                                                {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
                                                4.0f,
                                                true));
 
-    instructionConfigs.emplace("jump_tip",
-                               InstructionData("jump_tip", "Press SPACE or W to JUMP", 24, DARKGRAY,
-                                               2.5f, 1600.0f,
+    instructionConfigs.emplace("move_tip",
+                               InstructionData("move_tip", "Press A or D to MOVE", 24, DARKGRAY,
+                                               2.0f, 1600.0f,
                                                {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
-                                               2.0f,
+                                               8.0f,
+                                               true));
+
+    instructionConfigs.emplace("sneak_tip",
+                               InstructionData("sneak_tip", "Press S to SNEAK", 24, DARKGRAY,
+                                               2.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
+                                               12.0f,
                                                true));
 
     instructionConfigs.emplace("dash_tip",
                                InstructionData("dash_tip", "Press Shift to DASH", 24, DARKGRAY,
-                                               3.0f, 1600.0f,
+                                               2.0f, 1600.0f,
                                                {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
-                                               6.0f,
+                                               16.0f,
                                                true));
 
-    ResetAllInstructions(); // 确保初始状态正确
+    instructionConfigs.emplace("good",
+                               InstructionData("good", "GOOD LUCK and HAVE FUN :)", 24, DARKGRAY,
+                                               2.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
+                                               20.0f,
+                                               true));
+
+    instructionConfigs.emplace("60_1",
+                               InstructionData("60_1", "GOOD JOB", 24, DARKGRAY,
+                                               0.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 8.0f, -10.0f},
+                                               60.0f,
+                                               true));
+
+    instructionConfigs.emplace("60_2",
+                               InstructionData("60_2", "You", 24, DARKGRAY,
+                                               0.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 4.0f, -10.0f},
+                                               60.5f,
+                                               true));
+
+    instructionConfigs.emplace("60_3",
+                               InstructionData("60_3", "Made It", 24, DARKGRAY,
+                                               0.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 2.0f, -10.0f},
+                                               61.0f,
+                                               true));
+
+    instructionConfigs.emplace("60_4",
+                               InstructionData("60_4", "Through 60 Seconds", 24, DARKGRAY,
+                                               0.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) * 3 / 4.0f, -10.0f},
+                                               61.5f,
+                                               true));
+
+    instructionConfigs.emplace("60_5",
+                               InstructionData("60_5", "GO ON!", 24, DARKGRAY,
+                                               0.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) * 4 / 5.0f, -10.0f},
+                                               62.0f,
+                                               true));
+
+    ResetAllInstructions();
 }
 
-void InstructionManager::RequestShowInstruction(const std::string& instructionId)
+void InstructionManager::Update(const float deltaTime, const float worldScrollSpeed, const float currentGameTime)
 {
-    if (isAnyInstructionBeingProcessed())
+    for (auto& instructionText : activeInstructionTexts)
     {
-        // TraceLog(LOG_INFO, "InstructionManager: Another instruction ('%s') is active, cannot show '%s' yet.",
-        //          currentActiveInstructionId.c_str(), instructionId.c_str());
-        return; // 如果当前有提示正在处理，则不立即显示新的（可以加入队列或稍后重试逻辑）
+        instructionText.Update(deltaTime, worldScrollSpeed);
     }
 
-    auto it = instructionConfigs.find(instructionId);
-    if (it != instructionConfigs.end())
+    activeInstructionTexts.erase(
+        std::ranges::remove_if(activeInstructionTexts,
+                               [](const InstructionText& it) { return it.IsDone(); }).begin(),
+        activeInstructionTexts.end());
+
+    for (auto& pair : instructionConfigs)
     {
-        InstructionData& data = it->second;
-        if (!data.triggeredThisSession || !data.isMandatoryToShow)
+        InstructionData& data = pair.second;
+
+        if (currentGameTime >= data.triggerAtGameTime && !data.triggeredThisSession)
         {
-            // 如果未触发过，或者非强制但允许重复
-            // TraceLog(LOG_INFO, "InstructionManager: Requesting to show instruction '%s'.", instructionId.c_str());
-            data.activationDelayPhaseActive = true;
-            data.currentDelayTimer = 0.0f;
-            // data.triggeredThisSession = true; // 应该在实际激活时设置
-        }
-        else
-        {
-            // TraceLog(LOG_INFO, "InstructionManager: Instruction '%s' already triggered this session or not mandatory.", instructionId.c_str());
-        }
-    }
-    else
-    {
-        TraceLog(LOG_WARNING, "InstructionManager: Unknown instructionId '%s' requested.", instructionId.c_str());
-    }
-}
-
-bool InstructionManager::isAnyInstructionBeingProcessed() const
-{
-    return !currentActiveInstructionId.empty() || activeInstructionText.IsActive();
-}
-
-// 新增方法实现
-bool InstructionManager::IsAnyInstructionActiveAndCollidable() const
-{
-    if (!currentActiveInstructionId.empty() && activeInstructionText.IsActive())
-    {
-        InstructionTextState state = activeInstructionText.GetCurrentState();
-        // 只有在显示或下落状态才可碰撞
-        return (state == InstructionTextState::DISPLAYING || state == InstructionTextState::FALLING);
-    }
-    return false;
-}
-
-// 新增方法实现
-Rectangle InstructionManager::GetActiveInstructionCollisionRect() const
-{
-    if (IsAnyInstructionActiveAndCollidable())
-    {
-        return activeInstructionText.GetCollisionRect();
-    }
-    // 如果没有活动的、可碰撞的提示，返回一个空矩形
-    return {0, 0, 0, 0};
-}
-
-
-void InstructionManager::Update(float deltaTime, float worldScrollSpeed) // <--- 新代码
-{
-    // 1. 更新当前活跃的 InstructionText 对象
-    if (activeInstructionText.IsActive())
-    {
-        // activeInstructionText.Update(deltaTime); // <--- 旧代码
-        activeInstructionText.Update(deltaTime, worldScrollSpeed); // <--- 新代码
-
-        if (activeInstructionText.IsDone())
-        {
-            // TraceLog(LOG_INFO, "InstructionManager: Active instruction '%s' is done.", currentActiveInstructionId.c_str());
-            if (!currentActiveInstructionId.empty())
-            {
-                auto it = instructionConfigs.find(currentActiveInstructionId);
-                if (it != instructionConfigs.end())
-                {
-                    // 可以在这里标记它真的完成了，或者 Game 类通过 IsInstructionDone 查询
-                }
-            }
-            currentActiveInstructionId = ""; // 清除当前活跃ID
-            // activeInstructionText.Reset(); // Reset它以便下次使用
-        }
-    }
-
-    // 2. 遍历所有配置，处理处于延迟激活阶段的提示
-    //    并且当前没有其他指令正在播放/处理
-    if (!isAnyInstructionBeingProcessed())
-    {
-        for (auto& pair : instructionConfigs)
-        {
-            InstructionData& data = pair.second;
-            if (data.activationDelayPhaseActive && !data.triggeredThisSession)
-            {
-                data.currentDelayTimer += deltaTime;
-                if (data.currentDelayTimer >= data.activationDelay)
-                {
-                    // TraceLog(LOG_INFO, "InstructionManager: Activating instruction '%s'.", data.id.c_str());
-
-                    activeInstructionText.Initialize(
-                        data.message.c_str(), data.fontSize, data.textColor,
-                        data.displayDuration, data.fallGravity,
-                        screenWidthRef, groundYRef, bombSoundRef
-                    );
-                    activeInstructionText.Activate(data.desiredCenterPos);
-
-                    currentActiveInstructionId = data.id;
-                    data.triggeredThisSession = true; // 标记已触发
-                    data.activationDelayPhaseActive = false; // 结束延迟阶段
-                    break; // 一次只激活一个
-                }
-            }
+            InstructionText newText;
+            newText.Initialize(
+                data.message.c_str(), data.fontSize, data.textColor,
+                data.displayDuration, data.fallGravity,
+                screenWidthRef, groundYRef, bombSoundRef
+            );
+            newText.Activate(data.desiredCenterPos);
+            activeInstructionTexts.push_back(newText);
+            data.triggeredThisSession = true;
         }
     }
 }
 
 void InstructionManager::Draw() const
 {
-    if (activeInstructionText.IsActive())
+    for (const auto& instructionText : activeInstructionTexts)
     {
-        activeInstructionText.Draw();
+        instructionText.Draw();
     }
 }
 
 void InstructionManager::ResetAllInstructions()
 {
-    activeInstructionText.Reset();
-    currentActiveInstructionId = "";
+    activeInstructionTexts.clear(); // 清空活跃的文本对象
     for (auto& pair : instructionConfigs)
     {
         pair.second.triggeredThisSession = false;
-        pair.second.activationDelayPhaseActive = false;
-        pair.second.currentDelayTimer = 0.0f;
     }
 }
 
-bool InstructionManager::IsInstructionDone(const std::string& instructionId) const
+std::vector<Rectangle> InstructionManager::GetAllActiveCollidableInstructionRects() const
 {
-    if (currentActiveInstructionId == instructionId)
+    std::vector<Rectangle> collidableRects;
+    for (const auto& activeText : activeInstructionTexts)
     {
-        return activeInstructionText.IsDone();
+        // 假设 InstructionText 有 GetCurrentState() 和 GetCollisionRect() 方法
+        // 并且这些方法是 const 的
+        InstructionTextState state = activeText.GetCurrentState();
+        // 只有在显示或下落状态才可碰撞
+        if (state == InstructionTextState::DISPLAYING || state == InstructionTextState::FALLING)
+        {
+            collidableRects.push_back(activeText.GetCollisionRect());
+        }
     }
-    // 如果不是当前活跃的，但之前触发过，我们也可以认为它“完成”了显示过程
-    auto it = instructionConfigs.find(instructionId);
-    if (it != instructionConfigs.end())
-    {
-        return it->second.triggeredThisSession && !activeInstructionText.IsActive(); // 如果触发过且当前没有活跃文本
-    }
-    return false;
-}
-
-bool InstructionManager::IsInstructionActive(const std::string& instructionId) const
-{
-    if (currentActiveInstructionId == instructionId)
-    {
-        return activeInstructionText.IsActive();
-    }
-    return false; // 或者检查 instructionConfigs 中对应ID的 activationDelayPhaseActive
+    return collidableRects;
 }

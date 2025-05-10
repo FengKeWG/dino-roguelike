@@ -203,9 +203,6 @@ void Game::InitGame()
     InitRoads();
     currentState = GameState::PLAYING;
     instructionManager.ResetAllInstructions();
-    instructionManager.RequestShowInstruction("jump_tip");
-    instructionManager.RequestShowInstruction("move_tip");
-    instructionManager.RequestShowInstruction("dash_tip");
     if (bgmMusic.frameCount > 0 && IsAudioDeviceReady())
     {
         SeekMusicStream(bgmMusic, 0.0f);
@@ -299,7 +296,7 @@ void Game::HandleInput()
 
 void Game::UpdateGame(const float deltaTime)
 {
-    instructionManager.Update(deltaTime, currentWorldScrollSpeed);
+    instructionManager.Update(deltaTime, currentWorldScrollSpeed, timePlayed);
 
     if (currentState == GameState::GAME_OVER || currentState == GameState::PAUSED)
     {
@@ -422,13 +419,19 @@ void Game::CheckCollisions()
         }
     }
 
-    if (!collisionDetected && instructionManager.IsAnyInstructionActiveAndCollidable())
+    if (!collisionDetected)
     {
-        Rectangle instructionRect = instructionManager.GetActiveInstructionCollisionRect();
-        if (CheckCollisionRecs(dinoRect, instructionRect))
+        // 获取所有活动的、可碰撞的教学提示的矩形
+        std::vector<Rectangle> instructionRects = instructionManager.GetAllActiveCollidableInstructionRects();
+
+        for (const auto& instructionRect : instructionRects)
         {
-            collisionDetected = true;
-            TraceLog(LOG_INFO, "Dinosaur collided with an active instruction text!");
+            if (CheckCollisionRecs(dinoRect, instructionRect))
+            {
+                collisionDetected = true;
+                TraceLog(LOG_INFO, "Dinosaur collided with an active instruction text!");
+                break; // 如果与任何一个教学提示碰撞，就标记碰撞并跳出循环
+            }
         }
     }
 

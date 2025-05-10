@@ -7,10 +7,10 @@
 static float GetRandomFloat(float min, float max)
 {
     if (min >= max) return min;
-    return min + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (max - min)));
+    return min + static_cast<float>(rand()) / (RAND_MAX / (max - min));
 }
 
-ParticleSystem::ParticleSystem(int maxParticlesCount)
+ParticleSystem::ParticleSystem(const int maxParticlesCount)
     : poolIndex(0)
 {
     particlesPool.resize(maxParticlesCount);

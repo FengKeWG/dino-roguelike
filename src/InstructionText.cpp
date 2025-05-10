@@ -10,19 +10,19 @@ InstructionText::InstructionText()
       textDrawPosition({0, 0}), // <--- 新增或调整
       fallVelocity({0, 0}), // <--- 修改
       displayTime(2.0f), currentTimer(0.0f), gravity(1000.0f), groundReferenceY(0.0f),
-      explosionParticles(250),
+      explosionParticles(300),
       explosionDuration(1.0f),
       screenWidthForCentering(960)
 {
-    // ---- NEW: 配置爆炸粒子属性 ----
-    explosionParticleProps.lifeTimeMin = 1.0f;
-    explosionParticleProps.lifeTimeMax = 2.0f;
-    explosionParticleProps.initialSpeedMin = 80.0f;
-    explosionParticleProps.initialSpeedMax = 250.0f;
-    explosionParticleProps.emissionAngleMin = 0.0f; // 全方位爆炸
+    // ---- 配置爆炸粒子属性 ----
+    explosionParticleProps.lifeTimeMin = 2.0f;
+    explosionParticleProps.lifeTimeMax = 4.0f;
+    explosionParticleProps.initialSpeedMin = 100.0f;
+    explosionParticleProps.initialSpeedMax = 500.0f;
+    explosionParticleProps.emissionAngleMin = 180.0f; // 270向上，180向右
     explosionParticleProps.emissionAngleMax = 360.0f;
     explosionParticleProps.startSizeMin = 2.0f;
-    explosionParticleProps.startSizeMax = 5.0f;
+    explosionParticleProps.startSizeMax = 8.0f;
     // 颜色可以基于文本框颜色
     explosionParticleProps.angularVelocityMin = -360.0f;
     explosionParticleProps.angularVelocityMax = 360.0f;
@@ -54,12 +54,12 @@ void InstructionText::Initialize(const char* text, int fs, Color tColor, /*Color
     Reset(); // Reset 会调用 CalculateTextLayout
 }
 
-void InstructionText::CalculateTextLayout(Vector2 startPos) // 重命名
+void InstructionText::CalculateTextLayout(const Vector2 startPos) // 重命名
 {
-    Vector2 textSize = MeasureTextEx(GetFontDefault(), message.c_str(), static_cast<float>(fontSize), 1);
+    const auto [x, y] = MeasureTextEx(GetFontDefault(), message.c_str(), static_cast<float>(fontSize), 1);
 
-    textBounds.width = textSize.x;
-    textBounds.height = textSize.y;
+    textBounds.width = x;
+    textBounds.height = y;
 
     if (startPos.x < 0)
     {
@@ -76,9 +76,9 @@ void InstructionText::CalculateTextLayout(Vector2 startPos) // 重命名
     textDrawPosition = {textBounds.x, textBounds.y};
 }
 
-void InstructionText::Activate(Vector2 desiredCenterPos) // 参数名修改以更清晰
+void InstructionText::Activate(const Vector2 startPos) // 参数名修改以更清晰
 {
-    CalculateTextLayout(desiredCenterPos); // desiredCenterPos 是文本的中心
+    CalculateTextLayout(startPos); // desiredCenterPos 是文本的中心
     currentState = InstructionTextState::DISPLAYING;
     currentTimer = 0.0f;
     fallVelocity = {0, 0};
@@ -133,7 +133,7 @@ void InstructionText::Update(float deltaTime, float worldScrollSpeed) // <--- �
 
         if (textBounds.y + textBounds.height >= groundReferenceY + 5.0f)
         {
-            textBounds.y = groundReferenceY - textBounds.height; // 精确停在地面
+            textBounds.y = groundReferenceY - textBounds.height + 5.0f; // 精确停在地面
             textDrawPosition.y = textBounds.y;
             fallVelocity.y = 0;
             currentState = InstructionTextState::EXPLODING;
@@ -144,7 +144,7 @@ void InstructionText::Update(float deltaTime, float worldScrollSpeed) // <--- �
                      IsAudioDeviceReady() ? "true" : "false"); // <--- 日志3
             PlaySound(bombSound);
             TraceLog(LOG_INFO, "InstructionText: PlaySound(bombSound) CALLED.");
-            Vector2 explosionCenter = {
+            const Vector2 explosionCenter = {
                 textBounds.x + textBounds.width / 2.0f,
                 textBounds.y + textBounds.height / 2.0f // 从文本区域中心爆炸
             };
