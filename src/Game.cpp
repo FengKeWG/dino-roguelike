@@ -33,12 +33,11 @@ Game::Game(const int width, const int height, const char* title)
       bgmMusic{nullptr},
       cloudSpawnTimerValue(0.0f)
 {
-    srand(static_cast<unsigned int>(time(nullptr)));
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, title);
     SetExitKey(KEY_NULL);
     InitAudioDevice();
-    nextCloudSpawnTime = static_cast<float>(GetRandomValue(10, 60)) / 10.0f;
+    nextCloudSpawnTime = randF(1, 6);
     const auto [x, y] = GetWindowPosition();
     windowedPosX = static_cast<int>(x);
     windowedPosY = static_cast<int>(y);
@@ -191,15 +190,13 @@ void Game::InitGame()
     birds.clear();
     activeClouds.clear();
     cloudSpawnTimerValue = 0.0f;
-    nextCloudSpawnTime = static_cast<float>(GetRandomValue(10, 60)) / 10.0f;
+    nextCloudSpawnTime = randF(10, 60) / 10.0f;
     score = 0;
     timePlayed = 0.0f;
     worldBaseScrollSpeed = 200.0f;
     currentWorldScrollSpeed = worldBaseScrollSpeed;
     obstacleSpawnTimer = 0.0f;
-    currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX
-        / (maxObstacleSpawnInterval - minObstacleSpawnInterval)));
-
+    currentObstacleSpawnInterval = randF(minObstacleSpawnInterval, maxObstacleSpawnInterval);
     InitRoads();
     currentState = GameState::PLAYING;
     instructionManager.ResetAllInstructions();
@@ -331,7 +328,7 @@ void Game::UpdateGame(const float deltaTime)
     }
     for (auto it = birds.begin(); it != birds.end();)
     {
-        const float birdSpeedFactor = 0.3f + (static_cast<float>(rand() % 221) / 100.0f);
+        const float birdSpeedFactor = randF(0.3f, 2.51f);
         it->setSpeed(currentWorldScrollSpeed * birdSpeedFactor);
         it->Update(deltaTime);
         if (it->IsOffScreen()) it = birds.erase(it);
@@ -343,8 +340,7 @@ void Game::UpdateGame(const float deltaTime)
     {
         SpawnObstacleOrBird();
         obstacleSpawnTimer = 0.0f;
-        currentObstacleSpawnInterval = minObstacleSpawnInterval + static_cast<float>(rand()) / (RAND_MAX / (
-            maxObstacleSpawnInterval - minObstacleSpawnInterval));
+        currentObstacleSpawnInterval = randF(minObstacleSpawnInterval, maxObstacleSpawnInterval);
     }
 
     cloudSpawnTimerValue += deltaTime;
@@ -352,7 +348,7 @@ void Game::UpdateGame(const float deltaTime)
     {
         SpawnCloud();
         cloudSpawnTimerValue = 0.0f;
-        nextCloudSpawnTime = static_cast<float>(GetRandomValue(10, 60)) / 10.0f;
+        nextCloudSpawnTime = randF(1, 6);
     }
 
     CheckCollisions();
@@ -361,17 +357,17 @@ void Game::UpdateGame(const float deltaTime)
 void Game::SpawnObstacleOrBird()
 {
     if (birdFrames.empty() && smallCactusTextures.empty() && bigCactusTextures.empty()) return;
-    float spawnX = static_cast<float>(virtualScreenWidth) + 250.0f + (rand() % 350);
+    float spawnX = randF(250.0f, 600.0f);
 
-    if (const int entityTypeRoll = rand() % 100; entityTypeRoll < 60 || birdFrames.empty()) // 60% 仙人掌，或者没有鸟帧
+    if (const int entityTypeRoll = randI(0, 100); entityTypeRoll < 60 || birdFrames.empty()) // 60% 仙人掌，或者没有鸟帧
     {
         Texture2D chosenCactusTex;
-        if (const bool preferSmall = (rand() % 3 != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
+        if (const bool preferSmall = (randI(0, 3) != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
             preferSmall && !smallCactusTextures.empty())
-            chosenCactusTex = smallCactusTextures[rand() % smallCactusTextures.size()];
-        else if (!bigCactusTextures.empty()) chosenCactusTex = bigCactusTextures[rand() % bigCactusTextures.size()];
+            chosenCactusTex = smallCactusTextures[randI(0, smallCactusTextures.size())];
+        else if (!bigCactusTextures.empty()) chosenCactusTex = bigCactusTextures[randI(0, bigCactusTextures.size())];
         else if (!smallCactusTextures.empty())
-            chosenCactusTex = smallCactusTextures[rand() % smallCactusTextures.size()];
+            chosenCactusTex = smallCactusTextures[randI(0, smallCactusTextures.size())];
         else return;
         if (chosenCactusTex.id > 0) obstacles.emplace_back(spawnX, groundY, currentWorldScrollSpeed, chosenCactusTex);
     }
@@ -382,10 +378,9 @@ void Game::SpawnObstacleOrBird()
             const float dinoStandingTop = groundY - dino->runHeight;
             const float birdHeight = birdFrames[0].height;
             float spawnY;
-            if (const int heightTier = rand() % 2; heightTier == 0)
-                spawnY = dinoStandingTop - 60 - birdHeight - (rand()
-                    % 80);
-            else spawnY = groundY - dino->sneakHeight - birdHeight - 20 - (rand() % 30);
+            if (const int heightTier = randI(0, 2); heightTier == 0)
+                spawnY = dinoStandingTop - 60 - birdHeight - randI(0, 80);
+            else spawnY = groundY - dino->sneakHeight - birdHeight - 20 - randI(0, 30);
             spawnY = std::max(virtualScreenHeight * 0.15f, std::min(spawnY, groundY - birdHeight - 25.0f));
             birds.emplace_back(spawnX, spawnY, currentWorldScrollSpeed, birdFrames);
         }
@@ -514,9 +509,9 @@ void Game::DrawGame() const
 void Game::SpawnCloud()
 {
     Vector2 initialPosition;
-    initialPosition.x = static_cast<float>(virtualScreenWidth) + GetRandomValue(50, cloudTexture.width * 2);
-    initialPosition.y = static_cast<float>(GetRandomValue(virtualScreenHeight / 8, virtualScreenHeight / 2));
-    float cloudSpeed = static_cast<float>(GetRandomValue(15, 45)) + currentWorldScrollSpeed * 0.05f;
+    initialPosition.x = static_cast<float>(virtualScreenWidth) + randF(50, cloudTexture.width * 2);
+    initialPosition.y = randF(virtualScreenHeight / 8, virtualScreenHeight / 2);
+    float cloudSpeed = randF(15, 45) + currentWorldScrollSpeed * 0.05f;
     activeClouds.emplace_back(cloudTexture, initialPosition, cloudSpeed);
 }
 
@@ -594,7 +589,7 @@ void Game::InitRoads()
     float currentX = 0.0f;
     while (currentX < virtualScreenWidth * 1.5f)
     {
-        const int randIdx = rand() % roadSegmentTextures.size();
+        const int randIdx = randI(0, roadSegmentTextures.size());
         const Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
         activeRoadSegments.push_back({chosenRoadTex, currentX});
         currentX += chosenRoadTex.width;
@@ -629,7 +624,7 @@ void Game::UpdateRoadSegments(float deltaTime)
     }
     while (rightmostX < virtualScreenWidth * 1.5f)
     {
-        const int randIdx = rand() % roadSegmentTextures.size();
+        const int randIdx = randI(0, roadSegmentTextures.size());
         const Texture2D chosenRoadTex = roadSegmentTextures[randIdx];
         activeRoadSegments.push_back({chosenRoadTex, rightmostX});
         rightmostX += chosenRoadTex.width;

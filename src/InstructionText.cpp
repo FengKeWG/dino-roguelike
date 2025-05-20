@@ -1,7 +1,5 @@
 // InstructionText.cpp
 #include "../include/InstructionText.h"
-#include "raymath.h"
-#include <cstdlib>
 
 InstructionText::InstructionText()
     : currentState(InstructionTextState::INACTIVE),
@@ -148,7 +146,7 @@ void InstructionText::Update(float deltaTime, float worldScrollSpeed) // <--- �
                 textBounds.x + textBounds.width / 2.0f,
                 textBounds.y + textBounds.height / 2.0f // 从文本区域中心爆炸
             };
-            explosionParticles.Emit(explosionCenter, GetRandomValue(80, 150), explosionParticleProps, worldScrollSpeed);
+            explosionParticles.Emit(explosionCenter, randI(80, 150), explosionParticleProps, worldScrollSpeed);
         }
         break;
 

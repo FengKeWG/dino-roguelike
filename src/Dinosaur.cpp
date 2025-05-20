@@ -119,15 +119,15 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
         {
             position.x += dashDirection.x * dashSpeedMagnitude * deltaTime;
 
-            const int particlesToEmit = GetRandomValue(2, 4); // 每次冲刺帧多发几个粒子
+            const int particlesToEmit = randI(2, 4); // 每次冲刺帧多发几个粒子
             for (int i = 0; i < particlesToEmit; ++i)
             {
                 // 从恐龙身体的随机位置发射
                 const float dinoWidth = GetWidth();
                 const float dinoHeight = GetHeight();
                 const Vector2 particleEmitPos = {
-                    position.x + GetRandomFloat(dinoWidth * 0.1f, dinoWidth * 0.9f), // X在身体范围内随机
-                    position.y + GetRandomFloat(dinoHeight * 0.1f, dinoHeight * 0.9f) // Y在身体范围内随机
+                    position.x + randF(dinoWidth * 0.1f, dinoWidth * 0.9f), // X在身体范围内随机
+                    position.y + randF(dinoHeight * 0.1f, dinoHeight * 0.9f) // Y在身体范围内随机
                 };
 
                 // 根据冲刺方向调整粒子初始喷射角度 (轻微向后上方)

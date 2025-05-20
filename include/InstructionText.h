@@ -3,6 +3,7 @@
 #define INSTRUCTION_TEXT_H
 
 #include "raylib.h"
+#include "Utils.h"
 #include <string>
 #include <vector>
 #include "ParticleSystem.h" // <--- 包含新的粒子系统

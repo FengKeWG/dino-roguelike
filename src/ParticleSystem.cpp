@@ -1,14 +1,7 @@
 // ParticleSystem.cpp
 #include "../include/ParticleSystem.h"
-#include "raymath.h"
 #include <cstdlib>
 #include <cmath>
-
-static float GetRandomFloat(float min, float max)
-{
-    if (min >= max) return min;
-    return min + static_cast<float>(rand()) / (RAND_MAX / (max - min));
-}
 
 ParticleSystem::ParticleSystem(const int maxParticlesCount)
     : poolIndex(0)
@@ -56,20 +49,20 @@ void ParticleSystem::Emit(Vector2 emitterPosition, int count, const ParticleProp
 
         p.isActive = true;
         p.position = emitterPosition;
-        p.lifeTime = GetRandomFloat(props.lifeTimeMin, props.lifeTimeMax);
+        p.lifeTime = randF(props.lifeTimeMin, props.lifeTimeMax);
         p.lifeRemaining = p.lifeTime;
 
-        float angleRad = GetRandomFloat(props.emissionAngleMin, props.emissionAngleMax) * DEG2RAD;
-        float speed = GetRandomFloat(props.initialSpeedMin, props.initialSpeedMax);
+        float angleRad = randF(props.emissionAngleMin, props.emissionAngleMax) * DEG2RAD;
+        float speed = randF(props.initialSpeedMin, props.initialSpeedMax);
         p.velocity.x = cosf(angleRad) * speed;
         p.velocity.y = sinf(angleRad) * speed;
 
-        p.size = GetRandomFloat(props.startSizeMin, props.startSizeMax);
+        p.size = randF(props.startSizeMin, props.startSizeMax);
         p.color = props.startColor; // Alpha直接使用startColor的alpha
 
         p.rotation = 0.0f;
-        p.angularVelocity = GetRandomFloat(props.angularVelocityMin, props.angularVelocityMax);
-        p.gravityEffect = GetRandomFloat(props.gravityScaleMin, props.gravityScaleMax);
+        p.angularVelocity = randF(props.angularVelocityMin, props.angularVelocityMax);
+        p.gravityEffect = randF(props.gravityScaleMin, props.gravityScaleMax);
 
         // 设置地面交互属性
         p.isOnGround = false;

@@ -3,6 +3,7 @@
 #define PARTICLE_SYSTEM_H
 
 #include "raylib.h"
+#include "Utils.h"
 #include <vector>
 #include <string>
 
