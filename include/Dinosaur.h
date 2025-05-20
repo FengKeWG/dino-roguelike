@@ -28,6 +28,7 @@ public:
 
     void RequestJump();
     void StartSneaking();
+
     void StopSneaking();
     void Move(float direction, float deltaTime);
     void RequestDash();

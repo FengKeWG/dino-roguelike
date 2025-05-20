@@ -422,7 +422,7 @@ void Game::CheckCollisions()
     if (!collisionDetected)
     {
         // 获取所有活动的、可碰撞的教学提示的矩形
-        std::vector<Rectangle> instructionRects = instructionManager.GetAllActiveCollidableInstructionRects();
+        const std::vector<Rectangle> instructionRects = instructionManager.GetAllActiveCollidableInstructionRects();
 
         for (const auto& instructionRect : instructionRects)
         {
