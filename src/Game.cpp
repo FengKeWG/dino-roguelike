@@ -1,9 +1,6 @@
 #include "../include/Game.h"
 #include <iostream>
-#include <cstdlib>
-#include <ctime>
 #include <algorithm>
-#include <cmath>
 
 Game::Game(const int width, const int height, const char* title)
     : screenWidth(width), screenHeight(height),
@@ -13,7 +10,7 @@ Game::Game(const int width, const int height, const char* title)
       origin{0.0f, 0.0f}, isFullscreen(false),
       windowedPosX(0), windowedPosY(0),
       windowedWidth(width), windowedHeight(height),
-      dino(nullptr),
+      dino(nullptr), playerSword(nullptr),
       currentState(GameState::PLAYING),
       groundY(0),
       timePlayed(0.0f),
@@ -22,16 +19,18 @@ Game::Game(const int width, const int height, const char* title)
       currentWorldScrollSpeed(worldBaseScrollSpeed),
       worldSpeedIncreaseRate(10.0f),
       obstacleSpawnTimer(0.0f),
-      minObstacleSpawnInterval(0.6f), maxObstacleSpawnInterval(2.4f),
+      minObstacleSpawnInterval(0.5f), maxObstacleSpawnInterval(2.0f),
       currentObstacleSpawnInterval(0.0f),
       dinoDeadTexture{},
-      cloudTexture{},
+      cloudTexture{}, swordTexture{},
       jumpSound{nullptr},
       dashSound{nullptr},
       deadSound{nullptr},
       bombSound{nullptr},
+      swordSound{nullptr},
+      screamSound{nullptr},
       bgmMusic{nullptr},
-      cloudSpawnTimerValue(0.0f)
+      birdDeathParticles(300)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(screenWidth, screenHeight, title);
@@ -45,10 +44,25 @@ Game::Game(const int width, const int height, const char* title)
     SetTargetFPS(160);
     targetRenderTexture = LoadRenderTexture(virtualScreenWidth, virtualScreenHeight);
     SetTextureFilter(targetRenderTexture.texture, TEXTURE_FILTER_POINT);
-    groundY = static_cast<float>(virtualScreenHeight) * 0.85f; // 先计算好 groundY
+    groundY = static_cast<float>(virtualScreenHeight) * 0.85f;
     LoadResources();
+    birdDeathParticleProps.lifeTimeMin = 0.5f;
+    birdDeathParticleProps.lifeTimeMax = 1.5f;
+    birdDeathParticleProps.initialSpeedMin = 50.0f;
+    birdDeathParticleProps.initialSpeedMax = 150.0f;
+    birdDeathParticleProps.emissionAngleMin = 0.0f;
+    birdDeathParticleProps.emissionAngleMax = 360.0f;
+    birdDeathParticleProps.startSizeMin = 1.5f;
+    birdDeathParticleProps.startSizeMax = 8.0f;
+    birdDeathParticleProps.startColor = {200, 80, 80, 200};
+    birdDeathParticleProps.angularVelocityMin = -180.0f;
+    birdDeathParticleProps.angularVelocityMax = 180.0f;
+    birdDeathParticleProps.gravityScaleMin = 0.5f;
+    birdDeathParticleProps.gravityScaleMax = 1.5f;
+    birdDeathParticleProps.targetGroundY = groundY + 5.0f;
+    birdDeathParticles.SetGravity({0, 800.0f});
     instructionManager.Initialize(virtualScreenWidth, groundY, bombSound);
-    InitGame(); // InitGame 会设置 currentState 为 PAUSED
+    InitGame();
     HandleWindowResize();
 }
 
@@ -57,6 +71,7 @@ Game::~Game()
     UnloadRenderTexture(targetRenderTexture);
     UnloadResources();
     delete dino;
+    delete playerSword;
     CloseAudioDevice();
     CloseWindow();
 }
@@ -70,19 +85,23 @@ void Game::LoadResources()
     roadSegmentTextures.clear();
     birdFrames.clear();
 
+    if (const Texture2D tempSwordTex = LoadTexture("assets/images/sword.png"); tempSwordTex.id > 0)
+    {
+        SetTextureFilter(tempSwordTex, TEXTURE_FILTER_POINT);
+        swordTexture = tempSwordTex;
+    }
+
     if (const Texture2D tempTex = LoadTexture("assets/images/dino_dead.png"); tempTex.id > 0)
     {
         SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
         dinoDeadTexture = tempTex;
     }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/dino_dead.png"); }
 
     if (const Texture2D tempTex = LoadTexture("assets/images/cloud.png"); tempTex.id > 0)
     {
         SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
         cloudTexture = tempTex;
     }
-    else { TraceLog(LOG_WARNING, "Failed: assets/images/cloud.png"); }
 
     auto LoadTextures = [](const std::vector<std::string>& paths, std::vector<Texture2D>& container)
     {
@@ -92,10 +111,6 @@ void Game::LoadResources()
             {
                 SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
                 container.push_back(tempTex);
-            }
-            else
-            {
-                TraceLog(LOG_WARNING, ("Failed: " + path).c_str());
             }
         }
     };
@@ -131,22 +146,16 @@ void Game::LoadResources()
     auto LoadSoundEffect = [](const char* path, Sound& sound)
     {
         sound = LoadSound(path);
-        if (sound.frameCount == 0)
-        {
-            TraceLog(LOG_WARNING, ("Failed to load sound: " + std::string(path)).c_str());
-        }
     };
 
     LoadSoundEffect("assets/sounds/jump.wav", jumpSound);
     LoadSoundEffect("assets/sounds/dash.wav", dashSound);
     LoadSoundEffect("assets/sounds/dead.wav", deadSound);
     LoadSoundEffect("assets/sounds/bomb.wav", bombSound);
-
+    LoadSoundEffect("assets/sounds/scream.wav", screamSound);
+    LoadSoundEffect("assets/sounds/sword.wav", swordSound);
     bgmMusic = LoadMusicStream("assets/sounds/bgm.wav");
-    if (bgmMusic.frameCount == 0) { TraceLog(LOG_WARNING, "Failed to load music stream: assets/sounds/bgm.wav"); }
-    else { SetMusicVolume(bgmMusic, 0.3f); }
-
-    if (dinoRunFrames.empty()) { TraceLog(LOG_ERROR, "CRITICAL: Dinosaur has no run frames for animation."); }
+    SetMusicVolume(bgmMusic, 0.3f);
 }
 
 void Game::UnloadResources()
@@ -165,11 +174,13 @@ void Game::UnloadResources()
     birdFrames.clear();
     if (dinoDeadTexture.id > 0) UnloadTexture(dinoDeadTexture);
     if (cloudTexture.id > 0) UnloadTexture(cloudTexture);
-
+    if (swordTexture.id > 0) UnloadTexture(swordTexture);
+    if (swordSound.frameCount > 0) UnloadSound(swordSound);
     if (jumpSound.frameCount > 0) UnloadSound(jumpSound);
     if (dashSound.frameCount > 0) UnloadSound(dashSound);
     if (deadSound.frameCount > 0) UnloadSound(deadSound);
     if (bombSound.frameCount > 0) UnloadSound(bombSound);
+    if (screamSound.frameCount > 0) UnloadSound(screamSound);
     if (bgmMusic.frameCount > 0)
     {
         StopMusicStream(bgmMusic);
@@ -180,26 +191,52 @@ void Game::UnloadResources()
 void Game::InitGame()
 {
     groundY = static_cast<float>(virtualScreenHeight) * 0.85f;
+
+
     delete dino;
-    dino = new Dinosaur(virtualScreenWidth / 4.0f, groundY,
-                        dinoRunFrames, dinoSneakFrames,
-                        dinoDeadTexture,
-                        jumpSound, dashSound);
+    if (!dinoRunFrames.empty() && dinoDeadTexture.id > 0)
+    {
+        dino = new Dinosaur(virtualScreenWidth / 4.0f, groundY,
+                            dinoRunFrames, dinoSneakFrames,
+                            dinoDeadTexture,
+                            jumpSound, dashSound);
+    }
+    else
+    {
+        dino = nullptr;
+    }
+
+
+    delete playerSword;
+    if (dino && swordTexture.id > 0 && swordSound.frameCount > 0)
+    {
+        playerSword = new Sword(swordTexture, swordSound, dino);
+    }
+    else
+    {
+        playerSword = nullptr;
+    }
+
 
     obstacles.clear();
     birds.clear();
     activeClouds.clear();
     cloudSpawnTimerValue = 0.0f;
-    nextCloudSpawnTime = randF(10, 60) / 10.0f;
+    nextCloudSpawnTime = randF(1.0f, 6.0f);
+
     score = 0;
     timePlayed = 0.0f;
     worldBaseScrollSpeed = 200.0f;
     currentWorldScrollSpeed = worldBaseScrollSpeed;
     obstacleSpawnTimer = 0.0f;
     currentObstacleSpawnInterval = randF(minObstacleSpawnInterval, maxObstacleSpawnInterval);
+
     InitRoads();
+
     currentState = GameState::PLAYING;
     instructionManager.ResetAllInstructions();
+
+
     if (bgmMusic.frameCount > 0 && IsAudioDeviceReady())
     {
         SeekMusicStream(bgmMusic, 0.0f);
@@ -254,7 +291,6 @@ void Game::HandleInput()
             {
                 PauseMusicStream(bgmMusic);
             }
-            TraceLog(LOG_INFO, "Game Paused");
         }
         else if (currentState == GameState::PAUSED)
         {
@@ -263,7 +299,6 @@ void Game::HandleInput()
             {
                 ResumeMusicStream(bgmMusic);
             }
-            TraceLog(LOG_INFO, "Game Resumed");
         }
     }
     if (currentState == GameState::PLAYING && dino)
@@ -288,6 +323,10 @@ void Game::HandleInput()
         if (IsKeyDown(KEY_D)) moveDirection += 1.0f;
         if (IsKeyDown(KEY_A)) moveDirection -= 1.0f;
         dino->Move(moveDirection, GetFrameTime());
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && playerSword)
+        {
+            playerSword->Attack();
+        }
     }
 }
 
@@ -297,6 +336,8 @@ void Game::UpdateGame(const float deltaTime)
 
     if (currentState == GameState::GAME_OVER || currentState == GameState::PAUSED)
     {
+        birdDeathParticles.Update(deltaTime);
+        if (playerSword) playerSword->Update(deltaTime);
         return;
     }
 
@@ -307,18 +348,18 @@ void Game::UpdateGame(const float deltaTime)
     currentWorldScrollSpeed = worldBaseScrollSpeed;
 
     dino->Update(deltaTime, currentWorldScrollSpeed);
+    if (playerSword) playerSword->Update(deltaTime);
 
-    // 恐龙边界检查 (与之前相同)
     if (dino->position.x < 0) dino->position.x = 0;
     if (dino->position.x + dino->GetWidth() > virtualScreenWidth)
     {
         dino->position.x = virtualScreenWidth - dino->GetWidth();
     }
 
-    UpdateRoadSegments(deltaTime); // 路面滚动
+    UpdateRoadSegments(deltaTime);
     UpdateClouds(deltaTime);
+    birdDeathParticles.Update(deltaTime);
 
-    // 障碍物和鸟的更新 (与之前相同)
     for (auto it = obstacles.begin(); it != obstacles.end();)
     {
         it->setSpeed(currentWorldScrollSpeed);
@@ -357,9 +398,9 @@ void Game::UpdateGame(const float deltaTime)
 void Game::SpawnObstacleOrBird()
 {
     if (birdFrames.empty() && smallCactusTextures.empty() && bigCactusTextures.empty()) return;
-    float spawnX = randF(250.0f, 600.0f);
+    float spawnX = static_cast<float>(virtualScreenWidth) + 250.0f + randF(0, 350);
 
-    if (const int entityTypeRoll = randI(0, 100); entityTypeRoll < 60 || birdFrames.empty()) // 60% 仙人掌，或者没有鸟帧
+    if (const int entityTypeRoll = randI(0, 100); entityTypeRoll < 50 || birdFrames.empty())
     {
         Texture2D chosenCactusTex;
         if (const bool preferSmall = (randI(0, 3) != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
@@ -375,13 +416,20 @@ void Game::SpawnObstacleOrBird()
     {
         if (!birdFrames.empty())
         {
-            const float dinoStandingTop = groundY - dino->runHeight;
-            const float birdHeight = birdFrames[0].height;
+            const float birdSpriteHeight = birdFrames[0].height;
             float spawnY;
-            if (const int heightTier = randI(0, 2); heightTier == 0)
-                spawnY = dinoStandingTop - 60 - birdHeight - randI(0, 80);
-            else spawnY = groundY - dino->sneakHeight - birdHeight - 20 - randI(0, 30);
-            spawnY = std::max(virtualScreenHeight * 0.15f, std::min(spawnY, groundY - birdHeight - 25.0f));
+            float y_spawn_upper_limit = virtualScreenHeight * 0.3f;
+            float y_spawn_lower_limit = groundY - birdSpriteHeight;
+            if (y_spawn_upper_limit >= y_spawn_lower_limit)
+            {
+                spawnY = std::min(y_spawn_upper_limit, y_spawn_lower_limit);
+            }
+            else
+            {
+                spawnY = randF(y_spawn_upper_limit, y_spawn_lower_limit);
+            }
+            spawnY = std::max(spawnY, 0.0f);
+            spawnY = std::min(spawnY, groundY - birdSpriteHeight);
             birds.emplace_back(spawnX, spawnY, currentWorldScrollSpeed, birdFrames);
         }
     }
@@ -392,55 +440,66 @@ void Game::CheckCollisions()
     if (!dino) return;
 
     const Rectangle dinoRect = dino->GetCollisionRect();
-    bool collisionDetected = false;
+    bool dinoHitSomething = false;
+
 
     for (const auto& obs : obstacles)
     {
         if (CheckCollisionRecs(dinoRect, obs.GetCollisionRect()))
         {
-            collisionDetected = true;
+            dinoHitSomething = true;
             break;
         }
     }
-    if (!collisionDetected)
+
+
+    if (!dinoHitSomething)
     {
         for (const auto& brd : birds)
         {
             if (CheckCollisionRecs(dinoRect, brd.GetCollisionRect()))
             {
-                collisionDetected = true;
+                dinoHitSomething = true;
                 break;
             }
         }
     }
 
-    if (!collisionDetected)
-    {
-        // 获取所有活动的、可碰撞的教学提示的矩形
-        const std::vector<Rectangle> instructionRects = instructionManager.GetAllActiveCollidableInstructionRects();
 
-        for (const auto& instructionRect : instructionRects)
+    if (!dinoHitSomething)
+    {
+        for (const auto& instructionRect : instructionManager.GetAllActiveCollidableInstructionRects())
         {
             if (CheckCollisionRecs(dinoRect, instructionRect))
             {
-                collisionDetected = true;
-                TraceLog(LOG_INFO, "Dinosaur collided with an active instruction text!");
-                break; // 如果与任何一个教学提示碰撞，就标记碰撞并跳出循环
+                dinoHitSomething = true;
+
+                break;
             }
         }
     }
 
-    if (collisionDetected)
+
+    if (playerSword && playerSword->IsAttacking())
+    {
+        playerSword->CheckCollisionsWithBirds(birds, score,
+                                              birdDeathParticles, birdDeathParticleProps,
+                                              currentWorldScrollSpeed,
+                                              this->screamSound);
+    }
+
+
+    if (dinoHitSomething)
     {
         currentState = GameState::GAME_OVER;
-        dino->MarkAsDead(); // <--- 标记恐龙死亡
+        dino->MarkAsDead();
         if (bgmMusic.frameCount > 0 && IsMusicStreamPlaying(bgmMusic))
         {
-            StopMusicStream(bgmMusic); // <--- 停止BGM
+            StopMusicStream(bgmMusic);
         }
         if (deadSound.frameCount > 0 && IsAudioDeviceReady())
         {
-            PlaySound(deadSound); // <--- 播放死亡音效
+            PlaySound(deadSound);
         }
     }
 }
@@ -449,57 +508,74 @@ void Game::DrawGame() const
 {
     BeginTextureMode(targetRenderTexture);
     ClearBackground(RAYWHITE);
+
+
     for (const auto& cloud : activeClouds)
     {
         cloud.Draw();
     }
+
+
     for (const auto& [texture, xPosition] : activeRoadSegments)
     {
         DrawTexture(texture, static_cast<int>(xPosition), static_cast<int>(groundY), WHITE);
     }
+
+
     if (dino)
     {
         dino->Draw();
     }
-    for (auto& obs : obstacles)
+
+
+    for (const auto& obs : obstacles)
     {
         obs.Draw();
     }
-    for (auto& brd : birds)
+
+
+    for (const auto& brd : birds)
     {
         brd.Draw();
     }
+
+
+    if (playerSword)
+    {
+        playerSword->Draw();
+    }
+
+
+    birdDeathParticles.Draw();
+
+
     DrawText(TextFormat("Score: %06d", score), 20, 20, 30, DARKGRAY);
     DrawText(TextFormat("Time: %.1fs", timePlayed),
              virtualScreenWidth - MeasureText(TextFormat("Time: %.1fs", timePlayed), 20) - 20, 20, 20, DARKGRAY);
+
     instructionManager.Draw();
+
     if (currentState == GameState::GAME_OVER)
     {
         DrawText("GAME OVER", virtualScreenWidth / 2 - MeasureText("GAME OVER", 70) / 2, virtualScreenHeight * 0.4f, 70,
                  RED);
-        DrawText("Press R or Click to Restart",
-                 virtualScreenWidth / 2 - MeasureText("Press R or Click to Restart", 25) / 2,
+        DrawText("Press R to Restart",
+                 virtualScreenWidth / 2 - MeasureText("Press R to Restart", 25) / 2,
                  virtualScreenHeight * 0.6f, 25, DARKGRAY);
     }
     else if (currentState == GameState::PAUSED)
     {
         DrawRectangle(0, 0, virtualScreenWidth, virtualScreenHeight, Fade(BLACK, 0.4f));
-
         const auto pauseText = "PAUSED";
         constexpr int pauseTextFontSize = 30;
-        constexpr auto pauseTextColor = RAYWHITE;
+
         const int textWidth = MeasureText(pauseText, pauseTextFontSize);
-
-        // 定位在右下角
-        const float posX = virtualScreenWidth - textWidth - 20; // 20是屏幕右边距
-        const float posY = virtualScreenHeight - static_cast<float>(pauseTextFontSize) - 20; // 20是屏幕下边距
-
-        // 绘制文字
-        DrawText(pauseText, static_cast<int>(posX),
-                 static_cast<int>(posY + (static_cast<float>(pauseTextFontSize) - pauseTextFontSize) / 2.0f),
-                 pauseTextFontSize, pauseTextColor); // 垂直居中文字
+        const float posX = virtualScreenWidth - textWidth - 20;
+        const float posY = virtualScreenHeight - static_cast<float>(pauseTextFontSize) - 20;
+        DrawText(pauseText, static_cast<int>(posX), static_cast<int>(posY), pauseTextFontSize, RAYWHITE);
     }
     EndTextureMode();
+
     BeginDrawing();
     ClearBackground(BLACK);
     DrawTexturePro(targetRenderTexture.texture, sourceRec, destRec, origin, 0.0f, WHITE);
@@ -518,16 +594,16 @@ void Game::SpawnCloud()
 
 void Game::UpdateClouds(const float deltaTime)
 {
-    for (auto it = activeClouds.begin(); it != activeClouds.end(); /* no increment here */)
+    for (auto it = activeClouds.begin(); it != activeClouds.end();)
     {
-        it->Update(deltaTime); // 调用 Cloud 对象的 Update 方法
-        if (it->IsOffScreen()) // 调用 Cloud 对象的 IsOffScreen 方法
+        it->Update(deltaTime);
+        if (it->IsOffScreen())
         {
-            it = activeClouds.erase(it); // 如果移出屏幕，则移除
+            it = activeClouds.erase(it);
         }
         else
         {
-            ++it; // 否则迭代到下一个
+            ++it;
         }
     }
 }
@@ -537,7 +613,6 @@ void Game::ResetGame()
     if (bgmMusic.frameCount > 0 && IsMusicStreamPlaying(bgmMusic))
     {
         StopMusicStream(bgmMusic);
-        // SeekMusicStream(bgmMusic, 0.0f); // InitGame 会处理播放和 Seek
     }
     InitGame();
     HandleWindowResize();
@@ -562,9 +637,6 @@ void Game::HandleWindowResize()
         dino->UpdateCollisionRect();
     }
     InitRoads();
-    TraceLog(LOG_INFO, "Window resized/state changed: Phys: %dx%d, Virt: %dx%d. Render scale: %.2f. FakeFullscreen: %s",
-             screenWidth, screenHeight, virtualScreenWidth, virtualScreenHeight, destRec.width / virtualScreenWidth,
-             isFullscreen ? "ON" : "OFF");
 }
 
 void Game::UpdateRenderTextureScaling()
@@ -663,7 +735,7 @@ void Game::Run()
         }
         else if (currentState == GameState::GAME_OVER)
         {
-            if (IsKeyPressed(KEY_R) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            if (IsKeyPressed(KEY_R))
             {
                 ResetGame();
             }

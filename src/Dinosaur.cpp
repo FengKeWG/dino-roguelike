@@ -381,8 +381,6 @@ Texture2D Dinosaur::GetCurrentTextureToDraw() const
         // Fallback到当前动画组的第一帧
         if (!frames.empty() && frames[0].id > 0)
         {
-            TraceLog(LOG_WARNING, "GetCurrentTextureToDraw: Invalid frame index %d, returning frame 0.",
-                     currentAnimFrameIndex);
             return frames[0];
         }
     }

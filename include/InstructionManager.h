@@ -39,7 +39,7 @@ class InstructionManager
 public:
     InstructionManager();
     std::vector<Rectangle> GetAllActiveCollidableInstructionRects() const;
-    void Initialize(int virtualScreenWidth, float groundY, Sound bombSfx);
+    void Initialize(int virtualScreenWidth, float groundY, const Sound& bombSfx);
     void Update(float deltaTime, float worldScrollSpeed, float currentGameTime);
     void Draw() const;
     void ResetAllInstructions();

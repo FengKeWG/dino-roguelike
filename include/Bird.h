@@ -18,6 +18,7 @@ public:
     float GetWidth() const;
     float GetHeight() const;
     void setSpeed(float newSpeed);
+    Vector2 getPosition() const { return position; }
 
 private:
     Vector2 position;

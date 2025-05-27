@@ -15,7 +15,7 @@ ParticleSystem::~ParticleSystem()
     particlesPool.clear();
 }
 
-void ParticleSystem::SetGravity(Vector2 newGravity)
+void ParticleSystem::SetGravity(const Vector2 newGravity)
 {
     systemGravity = newGravity;
 }

@@ -5,6 +5,7 @@
 #include "Dinosaur.h"
 #include "Obstacle.h"
 #include "Cloud.h"
+#include "Sword.h"
 #include "Bird.h"
 #include "InstructionManager.h"
 #include <vector>
@@ -45,6 +46,7 @@ private:
     int windowedWidth, windowedHeight;
 
     Dinosaur* dino;
+    Sword* playerSword;
     std::vector<Obstacle> obstacles;
     std::vector<Bird> birds;
 
@@ -71,13 +73,19 @@ private:
     std::vector<Texture2D> birdFrames;
     Texture2D dinoDeadTexture;
     Texture2D cloudTexture;
+    Texture2D swordTexture;
 
     // 音频资源
     Sound jumpSound;
     Sound dashSound;
     Sound deadSound;
     Sound bombSound;
+    Sound swordSound;
+    Sound screamSound;
     Music bgmMusic;
+
+    ParticleSystem birdDeathParticles;
+    ParticleProperties birdDeathParticleProps;
 
     std::deque<Road> activeRoadSegments;
     std::deque<Cloud> activeClouds; // 存储当前屏幕上的云彩

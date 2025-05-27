@@ -7,7 +7,7 @@ InstructionManager::InstructionManager()
 {
 }
 
-void InstructionManager::Initialize(int virtualScreenWidth, float groundY, Sound bombSfx)
+void InstructionManager::Initialize(const int virtualScreenWidth, const float groundY, const Sound& bombSfx)
 {
     screenWidthRef = virtualScreenWidth;
     groundYRef = groundY;
@@ -103,9 +103,8 @@ void InstructionManager::Update(const float deltaTime, const float worldScrollSp
 
     for (auto& pair : instructionConfigs)
     {
-        InstructionData& data = pair.second;
-
-        if (currentGameTime >= data.triggerAtGameTime && !data.triggeredThisSession)
+        if (InstructionData& data = pair.second; currentGameTime >= data.triggerAtGameTime && !data.
+            triggeredThisSession)
         {
             InstructionText newText;
             newText.Initialize(
@@ -130,7 +129,7 @@ void InstructionManager::Draw() const
 
 void InstructionManager::ResetAllInstructions()
 {
-    activeInstructionTexts.clear(); // 清空活跃的文本对象
+    activeInstructionTexts.clear();
     for (auto& pair : instructionConfigs)
     {
         pair.second.triggeredThisSession = false;
@@ -142,10 +141,8 @@ std::vector<Rectangle> InstructionManager::GetAllActiveCollidableInstructionRect
     std::vector<Rectangle> collidableRects;
     for (const auto& activeText : activeInstructionTexts)
     {
-        // 假设 InstructionText 有 GetCurrentState() 和 GetCollisionRect() 方法
-        // 并且这些方法是 const 的
         InstructionTextState state = activeText.GetCurrentState();
-        // 只有在显示或下落状态才可碰撞
+
         if (state == InstructionTextState::DISPLAYING || state == InstructionTextState::FALLING)
         {
             collidableRects.push_back(activeText.GetCollisionRect());

@@ -26,7 +26,6 @@ struct Particle
     float groundYLevel; // 粒子应该停在的Y坐标 (由发射时设置)
     float groundScrollSpeedX; // 粒子在地面上时，X方向的滚动速度（通常是负的世界滚动速度）
 
-
     Particle() : position({0, 0}), velocity({0, 0}), color(WHITE), size(1.0f),
                  lifeTime(1.0f), lifeRemaining(0.0f), rotation(0.0f),
                  angularVelocity(0.0f), gravityEffect(1.0f), isActive(false),
