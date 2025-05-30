@@ -1,3 +1,4 @@
+// src/InstructionManager.cpp
 #include "../include/InstructionManager.h"
 #include "raylib.h"
 #include <algorithm>
@@ -7,6 +8,7 @@ InstructionManager::InstructionManager()
 {
 }
 
+// 初始化
 void InstructionManager::Initialize(const int virtualScreenWidth, const float groundY, const Sound& bombSfx)
 {
     screenWidthRef = virtualScreenWidth;
@@ -38,11 +40,17 @@ void InstructionManager::Initialize(const int virtualScreenWidth, const float gr
                                                {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
                                                16.0f,
                                                true));
+    instructionConfigs.emplace("attack_tip",
+                               InstructionData("attack_tip", "Left Click to ATTACK", 24, DARKGRAY,
+                                               2.0f, 1600.0f,
+                                               {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
+                                               20.0f,
+                                               true));
     instructionConfigs.emplace("good",
                                InstructionData("good", "GOOD LUCK and HAVE FUN :)", 24, DARKGRAY,
                                                2.0f, 1600.0f,
                                                {static_cast<float>(virtualScreenWidth) / 2.0f, 100.0f},
-                                               20.0f,
+                                               24.0f,
                                                true));
     instructionConfigs.emplace("60_1",
                                InstructionData("60_1", "GOOD JOB", 24, DARKGRAY,
@@ -89,6 +97,7 @@ void InstructionManager::Update(const float deltaTime, const float worldScrollSp
         activeInstructionTexts.end());
     for (auto& pair : instructionConfigs)
     {
+        // 如果当前游戏时间达到触发时间，并且该提示本局游戏尚未触发
         if (InstructionData& data = pair.second; currentGameTime >= data.triggerAtGameTime && !data.
             triggeredThisSession)
         {
@@ -98,8 +107,8 @@ void InstructionManager::Update(const float deltaTime, const float worldScrollSp
                 data.displayDuration, data.fallGravity,
                 screenWidthRef, groundYRef, bombSoundRef
             );
-            newText.Activate(data.desiredCenterPos);
-            activeInstructionTexts.push_back(newText);
+            newText.Activate(data.desiredCenterPos); // 激活文本，并设置其初始位置
+            activeInstructionTexts.push_back(newText); // 将新的文本添加到激活列表中
             data.triggeredThisSession = true;
         }
     }
@@ -122,6 +131,7 @@ void InstructionManager::ResetAllInstructions()
     }
 }
 
+// 获取所有当前激活且可碰撞的教学文本的矩形区域
 std::vector<Rectangle> InstructionManager::GetAllActiveCollidableInstructionRects() const
 {
     std::vector<Rectangle> collidableRects;

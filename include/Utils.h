@@ -10,19 +10,24 @@
 //     return min + (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * (max - min);
 // }
 
+// 生成 [min, max] 范围内的随机浮点数 (如果 min >= max, 返回 min)
 inline float randF(const float min, const float max)
 {
     if (min >= max) return min;
+    // 线程局部静态变量，确保每个线程有自己的生成器实例
     thread_local std::mt19937 generator(std::random_device{}());
-    std::uniform_real_distribution distribution(min, max);
+    std::uniform_real_distribution<float> distribution(min, max);
     return distribution(generator);
 }
 
+// 生成 [min, max-1] 范围内的随机整数 (如果 min >= max, 返回 min)
 inline int randI(const int min, const int max)
 {
     if (min >= max) return min;
+    // 线程局部静态变量
     thread_local std::mt19937 generator(std::random_device{}());
-    std::uniform_int_distribution distribution(min, max - 1); // [min, max)
+    // 分布范围是 [min, max-1]
+    std::uniform_int_distribution<int> distribution(min, max - 1);
     return distribution(generator);
 }
 
