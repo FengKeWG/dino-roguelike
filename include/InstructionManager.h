@@ -45,6 +45,7 @@ public:
     void ResetAllInstructions();
 
 private:
+    Font font;
     std::map<std::string, InstructionData> instructionConfigs;
     std::vector<InstructionText> activeInstructionTexts;
     int screenWidthRef;

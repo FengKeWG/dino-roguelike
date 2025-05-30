@@ -45,6 +45,9 @@ private:
     int windowedPosX, windowedPosY;
     int windowedWidth, windowedHeight;
 
+    Rectangle pause_restartButtonRect;
+    Rectangle pause_exitButtonRect;
+
     Dinosaur* dino;
     Sword* playerSword;
     std::vector<Obstacle> obstacles;

@@ -1,7 +1,6 @@
 #include "../include/Obstacle.h"
-#include <iostream>
 
-Obstacle::Obstacle(const float startX, const float groundYPos, const float obstacleSpeed, const Texture2D& tex)
+Obstacle::Obstacle(const float startX, const float groundY, const float obstacleSpeed, const Texture2D& tex)
     : position({0.0f, 0.0f}), speed(obstacleSpeed), collisionRect({0.0f, 0.0f, 20.0f, 50.0f}), texture(tex)
 {
     float obstacleHeight = 50.0f;
@@ -11,7 +10,7 @@ Obstacle::Obstacle(const float startX, const float groundYPos, const float obsta
         obstacleHeight = static_cast<float>(texture.height);
         obstacleWidth = static_cast<float>(texture.width);
     }
-    position = {startX, (groundYPos + 8.0f) - obstacleHeight};
+    position = {startX, (groundY + 8.0f) - obstacleHeight};
     collisionRect = {
         position.x,
         position.y,

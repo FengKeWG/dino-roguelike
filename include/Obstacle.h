@@ -6,7 +6,7 @@
 class Obstacle
 {
 public:
-    Obstacle(float startX, float groundYPos, float obstacleSpeed, const Texture2D& tex);
+    Obstacle(float startX, float groundY, float obstacleSpeed, const Texture2D& tex);
     ~Obstacle();
 
     void Update(float deltaTime);

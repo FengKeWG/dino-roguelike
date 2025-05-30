@@ -1,5 +1,4 @@
 #include "../include/Bird.h"
-#include <iostream>
 
 Bird::Bird(const float startX, const float startY, const float birdSpeed, const std::vector<Texture2D>& frames)
     : position({startX, startY}),

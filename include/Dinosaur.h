@@ -2,8 +2,9 @@
 #define DINOSAUR_H
 
 #include "raylib.h"
-#include "Utils.h"
 #include <vector>
+#include <iostream>
+#include <cmath>
 #include "ParticleSystem.h"
 
 class Dinosaur
@@ -15,7 +16,7 @@ public:
     float runHeight;
     float sneakHeight;
 
-    Dinosaur(float startX, float initialGroundY,
+    Dinosaur(float startX, float groundY,
              const std::vector<Texture2D>& runTex,
              const std::vector<Texture2D>& sneakTex,
              const Texture2D& deadTex,

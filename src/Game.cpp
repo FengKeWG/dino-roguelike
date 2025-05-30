@@ -19,7 +19,7 @@ Game::Game(const int width, const int height, const char* title)
       currentWorldScrollSpeed(worldBaseScrollSpeed),
       worldSpeedIncreaseRate(10.0f),
       obstacleSpawnTimer(0.0f),
-      minObstacleSpawnInterval(0.5f), maxObstacleSpawnInterval(2.0f),
+      minObstacleSpawnInterval(0.3f), maxObstacleSpawnInterval(1.8f),
       currentObstacleSpawnInterval(0.0f),
       dinoDeadTexture{},
       cloudTexture{}, swordTexture{},
@@ -46,8 +46,8 @@ Game::Game(const int width, const int height, const char* title)
     SetTextureFilter(targetRenderTexture.texture, TEXTURE_FILTER_POINT);
     groundY = static_cast<float>(virtualScreenHeight) * 0.85f;
     LoadResources();
-    birdDeathParticleProps.lifeTimeMin = 0.5f;
-    birdDeathParticleProps.lifeTimeMax = 1.5f;
+    birdDeathParticleProps.lifeTimeMin = 1.5f;
+    birdDeathParticleProps.lifeTimeMax = 3.5f;
     birdDeathParticleProps.initialSpeedMin = 50.0f;
     birdDeathParticleProps.initialSpeedMax = 150.0f;
     birdDeathParticleProps.emissionAngleMin = 0.0f;
@@ -90,13 +90,11 @@ void Game::LoadResources()
         SetTextureFilter(tempSwordTex, TEXTURE_FILTER_POINT);
         swordTexture = tempSwordTex;
     }
-
     if (const Texture2D tempTex = LoadTexture("assets/images/dino_dead.png"); tempTex.id > 0)
     {
         SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
         dinoDeadTexture = tempTex;
     }
-
     if (const Texture2D tempTex = LoadTexture("assets/images/cloud.png"); tempTex.id > 0)
     {
         SetTextureFilter(tempTex, TEXTURE_FILTER_POINT);
@@ -191,22 +189,11 @@ void Game::UnloadResources()
 void Game::InitGame()
 {
     groundY = static_cast<float>(virtualScreenHeight) * 0.85f;
-
-
     delete dino;
-    if (!dinoRunFrames.empty() && dinoDeadTexture.id > 0)
-    {
-        dino = new Dinosaur(virtualScreenWidth / 4.0f, groundY,
-                            dinoRunFrames, dinoSneakFrames,
-                            dinoDeadTexture,
-                            jumpSound, dashSound);
-    }
-    else
-    {
-        dino = nullptr;
-    }
-
-
+    dino = new Dinosaur(virtualScreenWidth / 4.0f, groundY,
+                        dinoRunFrames, dinoSneakFrames,
+                        dinoDeadTexture,
+                        jumpSound, dashSound);
     delete playerSword;
     if (dino && swordTexture.id > 0 && swordSound.frameCount > 0)
     {
@@ -281,7 +268,6 @@ void Game::HandleInput()
         }
         HandleWindowResize();
     }
-
     if (IsKeyPressed(KEY_ESCAPE))
     {
         if (currentState == GameState::PLAYING)
@@ -298,6 +284,52 @@ void Game::HandleInput()
             if (bgmMusic.frameCount > 0)
             {
                 ResumeMusicStream(bgmMusic);
+            }
+        }
+    }
+    if (currentState == GameState::PAUSED)
+    {
+        Vector2 virtualMousePos = {0, 0};
+        Vector2 mousePoint = GetMousePosition();
+        virtualMousePos.x = (mousePoint.x - destRec.x) / (destRec.width / virtualScreenWidth);
+        virtualMousePos.y = (mousePoint.y - destRec.y) / (destRec.height / virtualScreenHeight);
+
+
+        float buttonWidth = 220;
+        float buttonHeight = 50;
+        float buttonSpacing = 20;
+
+        float restartButtonY = virtualScreenHeight * 0.45f;
+
+        Rectangle current_restartButtonRect = {
+            virtualScreenWidth / 2.0f - buttonWidth / 2.0f,
+            restartButtonY,
+            buttonWidth,
+            buttonHeight
+        };
+
+        Rectangle current_exitButtonRect = {
+            virtualScreenWidth / 2.0f - buttonWidth / 2.0f,
+            current_restartButtonRect.y + buttonHeight + buttonSpacing,
+            buttonWidth,
+            buttonHeight
+        };
+
+
+        if (CheckCollisionPointRec(virtualMousePos, current_restartButtonRect))
+        {
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            {
+                ResetGame();
+            }
+        }
+
+
+        if (CheckCollisionPointRec(virtualMousePos, current_exitButtonRect))
+        {
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            {
+                CloseWindow();
             }
         }
     }
@@ -400,7 +432,7 @@ void Game::SpawnObstacleOrBird()
     if (birdFrames.empty() && smallCactusTextures.empty() && bigCactusTextures.empty()) return;
     float spawnX = static_cast<float>(virtualScreenWidth) + 250.0f + randF(0, 350);
 
-    if (const int entityTypeRoll = randI(0, 100); entityTypeRoll < 50 || birdFrames.empty())
+    if (const int entityTypeRoll = randI(0, 100); entityTypeRoll < 40)
     {
         Texture2D chosenCactusTex;
         if (const bool preferSmall = (randI(0, 3) != 0 && !smallCactusTextures.empty()) || bigCactusTextures.empty();
@@ -515,36 +547,59 @@ void Game::DrawGame() const
         cloud.Draw();
     }
 
-
     for (const auto& [texture, xPosition] : activeRoadSegments)
     {
         DrawTexture(texture, static_cast<int>(xPosition), static_cast<int>(groundY), WHITE);
     }
 
-
     if (dino)
     {
         dino->Draw();
-    }
 
+
+        if (playerSword && playerSword->IsOnCooldown())
+        {
+            const float dinoDrawX = dino->position.x;
+            const float dinoDrawY = dino->position.y;
+            const float dinoDrawWidth = dino->GetWidth();
+
+            const float cdBarMaxWidth = dinoDrawWidth * 0.7f;
+            const float cdBarHeight = 7.0f;
+            const float cdBarOffsetY = 12.0f;
+
+            float cooldownProgress = playerSword->GetCooldownProgress();
+            float currentCDBarWidth = cdBarMaxWidth * cooldownProgress;
+
+            Vector2 cdBarBgPosition = {
+                dinoDrawX + (dinoDrawWidth / 2.0f) - (cdBarMaxWidth / 2.0f),
+                dinoDrawY - cdBarHeight - cdBarOffsetY
+            };
+
+
+            DrawRectangleV(cdBarBgPosition, {cdBarMaxWidth, cdBarHeight}, Fade(DARKGRAY, 0.75f));
+
+
+            DrawRectangleV(cdBarBgPosition, {currentCDBarWidth, cdBarHeight}, LIGHTGRAY);
+
+
+            DrawRectangleLinesEx({cdBarBgPosition.x, cdBarBgPosition.y, cdBarMaxWidth, cdBarHeight}, 1.0f, BLACK);
+        }
+    }
 
     for (const auto& obs : obstacles)
     {
         obs.Draw();
     }
 
-
     for (const auto& brd : birds)
     {
         brd.Draw();
     }
 
-
     if (playerSword)
     {
         playerSword->Draw();
     }
-
 
     birdDeathParticles.Draw();
 
@@ -565,14 +620,71 @@ void Game::DrawGame() const
     }
     else if (currentState == GameState::PAUSED)
     {
-        DrawRectangle(0, 0, virtualScreenWidth, virtualScreenHeight, Fade(BLACK, 0.4f));
-        const auto pauseText = "PAUSED";
-        constexpr int pauseTextFontSize = 30;
+        DrawRectangle(0, 0, virtualScreenWidth, virtualScreenHeight, Fade(BLACK, 0.8f));
 
-        const int textWidth = MeasureText(pauseText, pauseTextFontSize);
-        const float posX = virtualScreenWidth - textWidth - 20;
-        const float posY = virtualScreenHeight - static_cast<float>(pauseTextFontSize) - 20;
-        DrawText(pauseText, static_cast<int>(posX), static_cast<int>(posY), pauseTextFontSize, RAYWHITE);
+
+        const char* gameTitleText = "Dino Plus Ultra";
+        int titleFontSize = 60;
+        int titleTextWidth = MeasureText(gameTitleText, titleFontSize);
+        DrawText(gameTitleText, virtualScreenWidth / 2 - titleTextWidth / 2, virtualScreenHeight * 0.2f, titleFontSize,
+                 WHITE);
+
+
+        float buttonWidth = 220;
+        float buttonHeight = 50;
+        int buttonFontSize = 25;
+        float buttonSpacing = 20;
+
+        Vector2 virtualMousePos = {0, 0};
+
+
+        Vector2 mousePoint = GetMousePosition();
+        virtualMousePos.x = (mousePoint.x - destRec.x) / (destRec.width / virtualScreenWidth);
+        virtualMousePos.y = (mousePoint.y - destRec.y) / (destRec.height / virtualScreenHeight);
+
+
+        const char* restartText = "Restart Game";
+
+
+        Rectangle localRestartButtonRect = {
+            virtualScreenWidth / 2.0f - buttonWidth / 2.0f,
+            virtualScreenHeight * 0.45f,
+            buttonWidth,
+            buttonHeight
+        };
+
+
+        Color restartButtonColor = DARKGRAY;
+        if (CheckCollisionPointRec(virtualMousePos, localRestartButtonRect))
+        {
+            restartButtonColor = GRAY;
+        }
+        DrawRectangleRec(localRestartButtonRect, restartButtonColor);
+        DrawRectangleLinesEx(localRestartButtonRect, 2, LIGHTGRAY);
+        int restartTextWidth = MeasureText(restartText, buttonFontSize);
+        DrawText(restartText, localRestartButtonRect.x + (buttonWidth - restartTextWidth) / 2,
+                 localRestartButtonRect.y + (buttonHeight - buttonFontSize) / 2, buttonFontSize, WHITE);
+
+
+        const char* exitText = "Quit Game";
+        Rectangle localExitButtonRect = {
+            virtualScreenWidth / 2.0f - buttonWidth / 2.0f,
+            localRestartButtonRect.y + buttonHeight + buttonSpacing,
+            buttonWidth,
+            buttonHeight
+        };
+
+
+        Color exitButtonColor = DARKGRAY;
+        if (CheckCollisionPointRec(virtualMousePos, localExitButtonRect))
+        {
+            exitButtonColor = GRAY;
+        }
+        DrawRectangleRec(localExitButtonRect, exitButtonColor);
+        DrawRectangleLinesEx(localExitButtonRect, 2, LIGHTGRAY);
+        int exitTextWidth = MeasureText(exitText, buttonFontSize);
+        DrawText(exitText, localExitButtonRect.x + (buttonWidth - exitTextWidth) / 2,
+                 localExitButtonRect.y + (buttonHeight - buttonFontSize) / 2, buttonFontSize, WHITE);
     }
     EndTextureMode();
 

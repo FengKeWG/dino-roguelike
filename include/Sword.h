@@ -13,7 +13,7 @@ class Sword
 {
 public:
     // 构造函数，传入剑的纹理、挥剑声音和恐龙主人
-    Sword(Texture2D tex, Sound sound, Dinosaur* ownerDino);
+    Sword(const Texture2D& tex, const Sound& sound, Dinosaur* ownerDino);
     ~Sword();
 
     void Update(float deltaTime); // 更新剑的状态（例如攻击动画）
@@ -31,6 +31,9 @@ public:
                                   ParticleSystem& effectParticles,
                                   const ParticleProperties& effectProps,
                                   float worldScrollSpeed, const Sound& birdScreamSound);
+
+    bool IsOnCooldown() const;
+    float GetCooldownProgress() const; // 返回值范围: 1.0 (刚开始冷却) 到 0.0 (冷却结束)
 
 private:
     Texture2D texture; // 剑的纹理

@@ -19,7 +19,6 @@ InstructionText::InstructionText()
     explosionParticleProps.emissionAngleMax = 360.0f;
     explosionParticleProps.startSizeMin = 2.0f;
     explosionParticleProps.startSizeMax = 8.0f;
-
     explosionParticleProps.angularVelocityMin = -360.0f;
     explosionParticleProps.angularVelocityMax = 360.0f;
     explosionParticleProps.gravityScaleMin = 0.4f;
@@ -33,27 +32,22 @@ void InstructionText::Initialize(const char* text, int fs, Color tColor,
     message = text;
     fontSize = fs;
     textColor = tColor;
-
     displayTime = dispTime;
     gravity = fallGrav;
     screenWidthForCentering = virtualScreenWidth;
     groundReferenceY = groundYVal;
     bombSound = explosionSfx;
-
     explosionParticleProps.startColor = textColor;
     explosionParticleProps.targetGroundY = groundReferenceY + 5.0f;
     explosionParticles.SetGravity({0, gravity * 0.8f});
-
     Reset();
 }
 
 void InstructionText::CalculateTextLayout(const Vector2 startPos)
 {
     const auto [x, y] = MeasureTextEx(GetFontDefault(), message.c_str(), static_cast<float>(fontSize), 1);
-
     textBounds.width = x;
     textBounds.height = y;
-
     if (startPos.x < 0)
     {
         textBounds.x = (screenWidthForCentering - textBounds.width) / 2.0f;
@@ -99,14 +93,9 @@ void InstructionText::Update(float deltaTime, float worldScrollSpeed)
 {
     if (!IsActive() && currentState != InstructionTextState::EXPLODING)
     {
-        if (currentState == InstructionTextState::EXPLODING && explosionParticles.GetActiveParticlesCount() == 0)
-        {
-            currentState = InstructionTextState::DONE;
-        }
         return;
     }
     currentTimer += deltaTime;
-
     switch (currentState)
     {
     case InstructionTextState::DISPLAYING:
@@ -116,12 +105,10 @@ void InstructionText::Update(float deltaTime, float worldScrollSpeed)
             currentTimer = 0.0f;
         }
         break;
-
     case InstructionTextState::FALLING:
         fallVelocity.y += gravity * deltaTime;
         textBounds.y += fallVelocity.y * deltaTime;
         textDrawPosition.y = textBounds.y;
-
         if (textBounds.y + textBounds.height >= groundReferenceY + 5.0f)
         {
             textBounds.y = groundReferenceY - textBounds.height + 5.0f;
@@ -137,7 +124,6 @@ void InstructionText::Update(float deltaTime, float worldScrollSpeed)
             explosionParticles.Emit(explosionCenter, randI(80, 150), explosionParticleProps, worldScrollSpeed);
         }
         break;
-
     case InstructionTextState::EXPLODING:
         explosionParticles.Update(deltaTime);
         if (currentTimer >= explosionDuration && explosionParticles.GetActiveParticlesCount() == 0)
@@ -147,7 +133,6 @@ void InstructionText::Update(float deltaTime, float worldScrollSpeed)
         break;
     case InstructionTextState::INACTIVE:
     case InstructionTextState::DONE:
-
         if (explosionParticles.GetActiveParticlesCount() > 0)
         {
             explosionParticles.Update(deltaTime);
@@ -164,7 +149,6 @@ void InstructionText::Draw() const
                  fontSize,
                  textColor);
     }
-
     if (explosionParticles.GetActiveParticlesCount() > 0)
     {
         explosionParticles.Draw();

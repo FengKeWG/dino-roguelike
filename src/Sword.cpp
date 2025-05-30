@@ -1,9 +1,11 @@
 #include "../include/Sword.h"
 
-Sword::Sword(Texture2D tex, Sound sound, Dinosaur* ownerDino)
+Sword::Sword(const Texture2D& tex, const Sound& sound, Dinosaur* ownerDino)
     : texture(tex),
       swingSound(sound),
       owner(ownerDino),
+      cooldownTimer(0.0f),
+      attackCooldown(1.0f),
       isAttackingState(false),
       attackTimer(0.0f),
       attackDuration(0.3f),
@@ -12,19 +14,11 @@ Sword::Sword(Texture2D tex, Sound sound, Dinosaur* ownerDino)
       drawScale(0.3f),
       textureInitialAngle(-45.0f),
       swingStartAngleWorld(-75.0f),
-      swingEndAngleWorld(75.0f),
-      cooldownTimer(0.0f),
-      attackCooldown(0.0f)
+      swingEndAngleWorld(75.0f)
 {
-    if (!owner)
-    {
-        TraceLog(LOG_ERROR, "错误：剑在创建时没有指定主人 (Dinosaur)!");
-    }
 }
 
-Sword::~Sword()
-{
-}
+Sword::~Sword() = default;
 
 bool Sword::IsAttacking() const
 {
@@ -51,19 +45,13 @@ void Sword::Attack()
 {
     if (!isAttackingState && owner && cooldownTimer <= 0.0f)
     {
-        TraceLog(LOG_INFO, "Sword::Attack() - Conditions met, starting attack.");
         isAttackingState = true;
         attackTimer = 0.0f;
+        cooldownTimer = attackCooldown;
 
         if (swingSound.frameCount > 0 && IsAudioDeviceReady())
         {
             PlaySound(swingSound);
-        }
-    }
-    else
-    {
-        if (cooldownTimer > 0.0f)
-        {
         }
     }
 }
@@ -73,7 +61,9 @@ void Sword::Update(float deltaTime)
     if (cooldownTimer > 0.0f)
     {
         cooldownTimer -= deltaTime;
+        if (cooldownTimer < 0.0f) cooldownTimer = 0.0f;
     }
+
 
     if (!isAttackingState || !owner) return;
 
@@ -84,7 +74,6 @@ void Sword::Update(float deltaTime)
     {
         isAttackingState = false;
         attackProgress = 1.0f;
-        cooldownTimer = attackCooldown;
     }
 
 
@@ -97,9 +86,9 @@ void Sword::Update(float deltaTime)
     }
     else
     {
-        float targetWorldAngleLeft = 180.0f - currentRelativeAngle;
+        const float targetWorldAngleLeft = 180.0f - currentRelativeAngle;
 
-        float flippedTextureInitialAngle = 180.0f - textureInitialAngle;
+        const float flippedTextureInitialAngle = 180.0f - textureInitialAngle;
 
         finalDrawRotation = targetWorldAngleLeft - flippedTextureInitialAngle;
     }
@@ -142,6 +131,7 @@ Rectangle Sword::GetSwordAABB() const
     float baseSwordWidth = texture.width * drawScale;
     float baseSwordHeight = texture.height * drawScale;
 
+
     float topLeftX;
     float topLeftY = attachPoint.y - (pivotInTexture.y * drawScale);
 
@@ -166,8 +156,8 @@ Rectangle Sword::GetSwordAABB() const
 
     float offsetX = (aabb.width - reducedWidth);
 
-    float offsetY = (aabb.height - reducedHeight) * 0.1f;
 
+    float offsetY = (aabb.height - reducedHeight) * 0.1f;
 
     Rectangle collisionRect = {
         aabb.x + offsetX,
@@ -175,6 +165,7 @@ Rectangle Sword::GetSwordAABB() const
         reducedWidth,
         reducedHeight
     };
+
 
     if (collisionRect.width < 1.0f) collisionRect.width = 1.0f;
     if (collisionRect.height < 1.0f) collisionRect.height = 1.0f;
@@ -193,7 +184,7 @@ void Sword::CheckCollisionsWithBirds(std::vector<Bird>& birds, int& gameScore,
     Rectangle swordRect = GetSwordAABB();
     if (swordRect.width <= 0 || swordRect.height <= 0) return;
 
-    for (auto it = birds.begin(); it != birds.end(); /* 在循环内部增量 */)
+    for (auto it = birds.begin(); it != birds.end(); /* increment in loop */)
     {
         if (CheckCollisionRecs(swordRect, it->GetCollisionRect()))
         {
@@ -202,8 +193,10 @@ void Sword::CheckCollisionsWithBirds(std::vector<Bird>& birds, int& gameScore,
                 PlaySound(birdScreamSound);
             }
 
+
             Vector2 birdCenter = {
-                it->getPosition().x + it->GetWidth(), it->getPosition().y + it->GetHeight()
+                it->getPosition().x + it->GetWidth() / 2.0f,
+                it->getPosition().y + it->GetHeight() / 2.0f
             };
 
             effectParticles.Emit(birdCenter, GetRandomValue(25, 40), effectProps, worldScrollSpeed);
@@ -216,4 +209,20 @@ void Sword::CheckCollisionsWithBirds(std::vector<Bird>& birds, int& gameScore,
             ++it;
         }
     }
+}
+
+
+bool Sword::IsOnCooldown() const
+{
+    return cooldownTimer > 0.0f;
+}
+
+float Sword::GetCooldownProgress() const
+{
+    if (attackCooldown <= 0.0f || cooldownTimer <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    return cooldownTimer / attackCooldown;
 }
