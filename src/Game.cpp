@@ -196,10 +196,10 @@ void Game::InitGame()
     obstacleSpawnTimer = 0.0f;
     currentObstacleSpawnInterval = randF(minObstacleSpawnInterval, maxObstacleSpawnInterval);
     InitRoads();
-    currentState = GameState::PLAYING;
+    currentState = GameState::PAUSED;
     instructionManager.ResetAllInstructions();
-    SeekMusicStream(bgmMusic, 0.0f);
-    PlayMusicStream(bgmMusic);
+    // SeekMusicStream(bgmMusic, 0.0f);
+    // PlayMusicStream(bgmMusic);
 }
 
 void Game::HandleInput()
@@ -655,6 +655,7 @@ void Game::ResetGame()
         StopMusicStream(bgmMusic);
     }
     InitGame();
+    currentState = GameState::PLAYING;
     HandleWindowResize();
 }
 
@@ -713,11 +714,11 @@ void Game::InitRoads()
 }
 
 // 更新滚动路面
-void Game::UpdateRoadSegments(float deltaTime)
+void Game::UpdateRoadSegments(const float deltaTime)
 {
-    for (auto& segment : activeRoadSegments)
+    for (auto& [texture, xPosition] : activeRoadSegments)
     {
-        segment.xPosition -= currentWorldScrollSpeed * deltaTime;
+        xPosition -= currentWorldScrollSpeed * deltaTime;
     }
     while (!activeRoadSegments.empty() && (activeRoadSegments.front().xPosition + activeRoadSegments.front().texture.
         width) < 0)

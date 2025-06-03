@@ -19,10 +19,10 @@ struct Particle
     float rotation = 0.0f; // 粒子旋转角度
     float angularVelocity = 0.0f; // 粒子角速度
     float gravityEffect = 1.0f; // 受重力影响的程度
-    bool isActive = false; // 粒子是否激活 (是否在更新和绘制)
+    bool isActive = false; // 粒子是否激活
     bool isOnGround = false; // 粒子是否在地面上
-    float groundYLevel = 0.0f; // 地面Y坐标 (用于检测是否触地)
-    float groundScrollSpeedX = 0.0f; // 地面滚动速度 (用于模拟粒子在移动地面上)
+    float groundYLevel = 0.0f; // 地面Y坐标
+    float groundScrollSpeedX = 0.0f; // 地面滚动速度
 };
 
 // 粒子发射时的属性
@@ -32,16 +32,16 @@ struct ParticleProperties
     float lifeTimeMax = 1.5f; // 最大生命周期
     float initialSpeedMin = 50.0f; // 最小初始速度
     float initialSpeedMax = 150.0f; // 最大初始速度
-    float emissionAngleMin = 0.0f; // 最小发射角度 (度)
-    float emissionAngleMax = 360.0f; // 最大发射角度 (度)
+    float emissionAngleMin = 0.0f; // 最小发射角度
+    float emissionAngleMax = 360.0f; // 最大发射角度
     float startSizeMin = 2.0f; // 最小初始大小
     float startSizeMax = 5.0f; // 最大初始大小
     Color startColor = {255, 255, 255, 255}; // 初始颜色
-    float angularVelocityMin = -90.0f; // 最小角速度 (度/秒)
-    float angularVelocityMax = 90.0f; // 最大角速度 (度/秒)
+    float angularVelocityMin = -90.0f; // 最小角速度
+    float angularVelocityMax = 90.0f; // 最大角速度
     float gravityScaleMin = 0.8f; // 最小重力缩放
     float gravityScaleMax = 1.2f; // 最大重力缩放
-    float targetGroundY = -1.0f; // 目标地面Y坐标 (如果 < 0 则不使用)
+    float targetGroundY = -1.0f; // 目标地面Y坐标
 };
 
 // 粒子系统管理器

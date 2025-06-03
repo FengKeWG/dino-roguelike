@@ -10,16 +10,12 @@ Bird::Bird(const float startX, const float startY, const float birdSpeed, const 
       frameTimeCounter(0.0f),
       frameSpeed(0.15f)
 {
-    // 如果有有效的纹理帧，则根据第一帧精确设置碰撞矩形大小
-    if (!flyFrames.empty() && flyFrames[0].id > 0)
-    {
-        collisionRect = {
-            position.x,
-            position.y,
-            static_cast<float>(flyFrames[0].width),
-            static_cast<float>(flyFrames[0].height)
-        };
-    }
+    collisionRect = {
+        position.x,
+        position.y,
+        static_cast<float>(flyFrames[0].width),
+        static_cast<float>(flyFrames[0].height)
+    };
 }
 
 Bird::~Bird() = default;

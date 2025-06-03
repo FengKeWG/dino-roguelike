@@ -6,7 +6,7 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
-#include "ParticleSystem.h" // 引入粒子系统
+#include "ParticleSystem.h"
 
 // 表示玩家控制的恐龙角色
 class Dinosaur
@@ -83,8 +83,6 @@ private:
 
     float gravity; // 重力加速度
     float jumpSpeed; // 跳跃初速度
-    float coyoteTimeDuration; // 土狼时间持续时长
-    float coyoteTimeCounter; // 土狼时间计时器
     float jumpBufferDuration; // 跳跃缓冲持续时长
     float jumpBufferCounter; // 跳跃缓冲计时器
     bool jumpQueued; // 是否已缓存跳跃请求

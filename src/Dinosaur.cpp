@@ -13,9 +13,8 @@ Dinosaur::Dinosaur(const float startX, const float groundY,
       runFrames(runTex), sneakFrames(sneakTex), deadTexture(deadTex),
       isDead(false), currentAnimFrameIndex(0), frameTimeCounter(0.0f),
       animationSpeed(0.08f), collisionRect({0, 0, 0, 0}),
-      gravity(1800.0f), jumpSpeed(-600.0f), coyoteTimeDuration(0.1f),
-      coyoteTimeCounter(0.0f), jumpBufferDuration(0.1f),
-      jumpBufferCounter(0.0f),
+      gravity(1800.0f), jumpSpeed(-600.0f),
+      jumpBufferDuration(0.1f), jumpBufferCounter(0.0f),
       jumpQueued(false),
       sneakGravityMultiplier(2.5f),
       moveSpeed(280.0f),
@@ -147,14 +146,12 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
     // 如果不处于冲刺状态
     if (!isDashing)
     {
-        // 更新土狼时间和跳跃缓冲计时器
-        if (coyoteTimeCounter > 0.0f) coyoteTimeCounter -= deltaTime;
+        // 更新跳跃缓冲计时器
         if (jumpBufferCounter > 0.0f) jumpBufferCounter -= deltaTime;
         if (jumpBufferCounter <= 0.0f) jumpQueued = false; // 跳跃缓冲超时，取消已缓存的跳跃
 
-        // 检查是否可以执行跳跃 (有跳跃请求，且在地面或土狼时间内)
-        if (const bool onGroundBeforeVerticalMove = IsOnGround(); jumpQueued && (onGroundBeforeVerticalMove ||
-            coyoteTimeCounter > 0.0f))
+        // 检查是否可以执行跳跃 (有跳跃请求，且在地面)
+        if (const bool onGroundBeforeVerticalMove = IsOnGround(); jumpQueued && onGroundBeforeVerticalMove)
         {
             ExecuteJump(); // 执行跳跃
         }
@@ -180,7 +177,7 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
     {
         if (velocity.y >= 0) // 确保是向下运动时触地
         {
-            velocity.y = 0; // 垂直速度清零
+            velocity.y = 0;
             position.y = (groundY - GetHeight()) + 5.0f; // 精确设置在地面上
             if (isJumping) // 如果之前在跳跃状态
             {
@@ -190,11 +187,6 @@ void Dinosaur::Update(const float deltaTime, const float worldScrollSpeed)
                 {
                     ExecuteJump();
                 }
-            }
-            // 着地时重置土狼时间 (不在冲刺时)
-            if (!isDashing)
-            {
-                coyoteTimeCounter = coyoteTimeDuration;
             }
         }
     }
@@ -292,7 +284,6 @@ void Dinosaur::ExecuteJump()
 {
     velocity.y = jumpSpeed; // 设置向上的初始速度
     isJumping = true;
-    coyoteTimeCounter = 0.0f; // 消耗土狼时间
     jumpQueued = false; // 消耗已缓存的跳跃请求
     jumpBufferCounter = 0.0f; // 重置跳跃缓冲计时器
     currentAnimFrameIndex = 0;

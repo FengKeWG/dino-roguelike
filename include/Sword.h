@@ -3,12 +3,12 @@
 #define SWORD_H
 
 #include "raylib.h"
-#include "Dinosaur.h" // 剑需要知道它的所有者（恐龙）的位置和朝向
-#include "Bird.h"     // 用于碰撞检测鸟类
-#include "ParticleSystem.h" // 用于击中时的粒子效果
+#include "Dinosaur.h"
+#include "Bird.h"
+#include "ParticleSystem.h"
 #include <vector>
-#include <cmath>     // For std::fabs, 数学函数
-#include "raymath.h" // For Lerp, Raylib数学库
+#include <cmath>
+#include "raymath.h"
 
 // 表示恐龙的剑武器
 class Sword
@@ -57,7 +57,7 @@ private:
     float swingStartAngleWorld; // 挥动开始时的世界角度
     float swingEndAngleWorld; // 挥动结束时的世界角度
 
-    // 获取剑的轴对齐包围盒 (用于粗略碰撞检测)
+    // 获取剑的碰撞箱
     Rectangle GetSwordAABB() const;
     // 获取剑在恐龙身上的附着点/旋转中心点
     Vector2 GetAttachmentPoint() const;

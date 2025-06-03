@@ -18,7 +18,6 @@ struct InstructionData
     Vector2 desiredCenterPos = {0, 0}; // 期望的文本中心位置
     float triggerAtGameTime = 0.0f; // 在游戏进行到此时间点时触发
     bool triggeredThisSession = false; // 本局游戏是否已触发过
-    bool isMandatoryToShow = true; // 是否必须显示 (默认true)
 };
 
 // 管理游戏中所有教学提示的显示逻辑
@@ -34,15 +33,15 @@ public:
     void Update(float deltaTime, float worldScrollSpeed, float currentGameTime);
     // 绘制所有激活的教学文本
     void Draw() const;
-    // 重置所有教学提示的状态 (例如新游戏开始时)
+    // 重置所有教学提示的状态
     void ResetAllInstructions();
 
 private:
-    std::map<std::string, InstructionData> instructionConfigs; // 存储所有教学配置的映射表 (ID -> Data)
+    std::map<std::string, InstructionData> instructionConfigs; // 存储所有教学配置的映射表
     std::vector<InstructionText> activeInstructionTexts; // 当前屏幕上激活的教学文本列表
-    int screenWidthRef; // 屏幕宽度参考 (用于布局)
-    float groundYRef; // 地面Y坐标参考 (用于教学文本掉落)
-    Sound bombSoundRef; // 爆炸音效参考 (用于教学文本消失效果)
+    int screenWidthRef; // 屏幕宽度
+    float groundYRef; // 地面Y坐标
+    Sound bombSoundRef; // 爆炸音效
 };
 
 #endif // INSTRUCTION_MANAGER_H

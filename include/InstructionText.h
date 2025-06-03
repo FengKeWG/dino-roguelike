@@ -56,11 +56,11 @@ private:
     std::string message; // 显示的文本信息
     int fontSize; // 字体大小
     Color textColor; // 文本颜色
-    Rectangle textBounds; // 文本边界矩形 (用于碰撞和布局)
+    Rectangle textBounds; // 文本边界矩形
     Vector2 textDrawPosition; // 文本绘制的左上角位置
     Vector2 fallVelocity; // 掉落速度
     float displayTime; // 文本固定显示时长
-    float currentTimer; // 当前计时器 (用于displayTime或explosionDuration)
+    float currentTimer; // 当前计时器
     float gravity; // 掉落时的重力加速度
     float groundReferenceY; // 地面Y坐标参考 (用于停止掉落)
     Sound bombSound; // 爆炸音效

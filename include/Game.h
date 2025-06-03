@@ -70,7 +70,6 @@ private:
     float maxObstacleSpawnInterval; // 最大障碍物生成间隔
     float currentObstacleSpawnInterval; // 当前计算出的障碍物生成间隔
 
-    // 资源纹理
     std::vector<Texture2D> dinoRunFrames; // 恐龙奔跑动画帧
     std::vector<Texture2D> dinoSneakFrames; // 恐龙潜行动画帧
     std::vector<Texture2D> smallCactusTextures; // 小仙人掌纹理
@@ -81,7 +80,6 @@ private:
     Texture2D cloudTexture; // 云彩纹理
     Texture2D swordTexture; // 剑的纹理
 
-    // 音频资源
     Sound jumpSound; // 跳跃音效
     Sound dashSound; // 冲刺音效
     Sound deadSound; // 死亡音效

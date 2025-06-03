@@ -7,10 +7,8 @@ Obstacle::Obstacle(const float startX, const float groundY, const float obstacle
       collisionRect({0.0f, 0.0f, 20.0f, 50.0f}),
       texture(tex)
 {
-    float obstacleHeight = 50.0f;
-    float obstacleWidth = 20.0f;
-    obstacleHeight = static_cast<float>(texture.height);
-    obstacleWidth = static_cast<float>(texture.width);
+    const auto obstacleHeight = static_cast<float>(texture.height);
+    const auto obstacleWidth = static_cast<float>(texture.width);
     position = {startX, (groundY + 8.0f) - obstacleHeight};
     collisionRect = {
         position.x,
