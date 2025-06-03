@@ -209,22 +209,11 @@ void Game::HandleInput()
         const int currentMonitor = GetCurrentMonitor();
         if (!isFullscreen) // 如果当前是窗口模式，切换到全屏
         {
-            if (!IsWindowMaximized())
-            {
-                windowedWidth = screenWidth;
-                windowedHeight = screenHeight;
-                const auto [x, y] = GetWindowPosition();
-                windowedPosX = static_cast<int>(x);
-                windowedPosY = static_cast<int>(y);
-            }
-            else
-            {
-                windowedWidth = virtualScreenWidth;
-                windowedHeight = virtualScreenHeight;
-                // 将恢复位置设为屏幕中央
-                windowedPosX = GetMonitorWidth(currentMonitor) / 2 - windowedWidth / 2;
-                windowedPosY = GetMonitorHeight(currentMonitor) / 2 - windowedHeight / 2;
-            }
+            windowedWidth = screenWidth;
+            windowedHeight = screenHeight;
+            const auto [x, y] = GetWindowPosition();
+            windowedPosX = static_cast<int>(x);
+            windowedPosY = static_cast<int>(y);
             SetWindowState(FLAG_WINDOW_UNDECORATED); // 移除窗口边框、标题栏
             SetWindowSize(GetMonitorWidth(currentMonitor), GetMonitorHeight(currentMonitor)); // 设置为显示器大小
             SetWindowPosition(0, 0); // 移动到屏幕左上角
